@@ -2,12 +2,20 @@
 pragma solidity ^0.8.22;
 
 interface ILPStaking {
+    //////////////////////////////////////
+    // STRUCTS
+    //////////////////////////////////////
+
     struct User {
         uint256 lockedAmount;
         uint256 lastUpdate;
         uint256 rewardsClaimed;
         uint256 rewardsEarned;
     }
+
+    //////////////////////////////////////
+    // ERRORS
+    //////////////////////////////////////
 
     error Staking_Not_Initialized();
     error Staking_Already_Initialized();
@@ -21,4 +29,15 @@ interface ILPStaking {
     error Staking_Exceeds_Farming_Balance(uint256 balance);
     error Staking_Emergency_Withdrawal_Occurred();
     error Staking_Emergency_Withdrawal_Not_Occurred();
+
+    //////////////////////////////////////
+    // EVENTS
+    //////////////////////////////////////
+
+    event Staked(address indexed account, uint256 amount);
+    event StakeWithdrawn(address indexed account, uint256 amount);
+    event GaugeRewardsClaimed(uint256 timestamp, uint256 amount);
+    event RewardsClaimed(uint256 timestamp, address indexed account, uint256 amount);
+    event FeesWithdrawn(uint256 amount);
+    event EmergencyWithdrawnFunds(uint256 fees);
 }
