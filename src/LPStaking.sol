@@ -25,7 +25,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     uint256 public collectedFees;
     uint256 public withdrawEarlierFeeLockTime = 30 days;
     UD60x18 public withdrawEarlierFee = ud(0.1e18);
-    uint256 public minStakedToReward = 0.000003 ether;
+    uint256 public minPerWallet = 0.000003 ether;
 
     uint256 public periodFinish;
     address public lpToken;
@@ -44,6 +44,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         }
 
         if (amount == 0) revert ILPStaking.Staking_Insufficient_Amount();
+        if (amount < minPerWallet) revert ILPStaking.Staking_Insufficient_Amount();
 
         if (totalStaked + amount > MAX_ALLOWED_TO_STAKE) {
             revert ILPStaking.Staking_Max_Limit_Reached();
@@ -89,6 +90,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
     function withdraw(address wallet, uint256 amount) external nonReentrant {
         if (amount == 0) revert ILPStaking.Staking_Insufficient_Amount();
+        if (amount < minPerWallet) revert ILPStaking.Staking_Insufficient_Amount();
 
         ILPStaking.User storage user = stakings[wallet];
         uint256 balance = user.lockedAmount;
@@ -174,8 +176,9 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         withdrawEarlierFee = ud(_withdrawEarlierFee);
     }
 
-    function updateMinStakedToReward(uint256 _minStakedToReward) external onlyOwner {
-        minStakedToReward = _minStakedToReward;
+    function updateMinPerWallet(uint256 _minPerWallet) external onlyOwner {
+        if (_minPerWallet == 0) revert ILPStaking.Staking_Insufficient_Amount();
+        minPerWallet = _minPerWallet;
     }
 
     //////////////////////////////////////
@@ -226,7 +229,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         uint256 accumulatedRewards = user.rewardsEarned;
         uint256 _totalRewards = totalRewards();
 
-        if (_totalRewards == 0 || lockedAmount == 0 || lockedAmount < minStakedToReward || elapsedTime == 0) {
+        if (_totalRewards == 0 || lockedAmount == 0 || elapsedTime == 0) {
             return accumulatedRewards;
         }
 

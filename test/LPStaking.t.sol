@@ -26,7 +26,7 @@ contract LPStakingTest is Test {
     address mary;
 
     uint256 period = 60 days;
-    uint256 minToReward;
+    uint256 minPerWallet;
 
     function setUp() public virtual {
         RPC_URL = vm.envString("BASE_RPC_URL");
@@ -43,7 +43,7 @@ contract LPStakingTest is Test {
         mary = vm.addr(2);
         vm.label(mary, "mary");
 
-        minToReward = staking.minStakedToReward();
+        minPerWallet = staking.minPerWallet();
     }
 
     // CONSTRUCTOR
@@ -117,9 +117,9 @@ contract LPStakingTest is Test {
     function testRevertWhenAmountExceedsMaxAmounToStake()
         external
         initialized(period)
-        hasBalance(bob, staking.MAX_ALLOWED_TO_STAKE() + minToReward)
+        hasBalance(bob, staking.MAX_ALLOWED_TO_STAKE() + minPerWallet)
     {
-        uint256 amount = staking.MAX_ALLOWED_TO_STAKE() + minToReward;
+        uint256 amount = staking.MAX_ALLOWED_TO_STAKE() + minPerWallet;
 
         vm.startPrank(bob);
         vm.expectRevert(ILPStaking.Staking_Max_Limit_Reached.selector);
@@ -127,18 +127,18 @@ contract LPStakingTest is Test {
         vm.stopPrank();
     }
 
-    function testCanStake() external initialized(period) hasBalance(bob, minToReward) {
+    function testCanStake() external initialized(period) hasBalance(bob, minPerWallet) {
         vm.startPrank(bob);
-        ERC20(lpToken).approve(address(staking), minToReward);
+        ERC20(lpToken).approve(address(staking), minPerWallet);
         vm.expectEmit(true, true, true, true);
-        emit ILPStaking.Staked(bob, minToReward);
-        staking.stake(bob, minToReward);
+        emit ILPStaking.Staked(bob, minPerWallet);
+        staking.stake(bob, minPerWallet);
         vm.stopPrank();
 
         (uint256 lockedAmount, uint256 lastUpdate, uint256 rewardsClaimed, uint256 rewardsEarned) =
             staking.stakings(bob);
 
-        assertEq(lockedAmount, minToReward);
+        assertEq(lockedAmount, minPerWallet);
         assertEq(lastUpdate, block.timestamp);
         assertEq(rewardsClaimed, 0);
         assertEq(rewardsEarned, 0);
@@ -159,8 +159,8 @@ contract LPStakingTest is Test {
     function testRevertWithdrawIfAmountIsZero()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         vm.startPrank(bob);
         vm.expectRevert(ILPStaking.Staking_Insufficient_Amount.selector);
@@ -171,27 +171,27 @@ contract LPStakingTest is Test {
     function testRevertWhenHasNoBalanceStaked() external initialized(period) {
         vm.startPrank(bob);
         vm.expectRevert(ILPStaking.Staking_No_Balance_Staked.selector);
-        staking.withdraw(bob, minToReward);
+        staking.withdraw(bob, minPerWallet);
         vm.stopPrank();
     }
 
     function testRevertWithdrawIfAmountIsGreaterThanStakedBalance()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         vm.startPrank(bob);
         vm.expectRevert(ILPStaking.Staking_Amount_Exceeds_Balance.selector);
-        staking.withdraw(bob, minToReward * 2);
+        staking.withdraw(bob, minPerWallet * 2);
         vm.stopPrank();
     }
 
     function testCanWithdrawStakedBalance()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         (, uint256 lastUpdate,,) = staking.stakings(bob);
         vm.warp(lastUpdate + staking.withdrawEarlierFeeLockTime());
@@ -200,14 +200,14 @@ contract LPStakingTest is Test {
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ILPStaking.StakeWithdrawn(bob, minToReward);
-        staking.withdraw(bob, minToReward);
+        emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
+        staking.withdraw(bob, minPerWallet);
         vm.stopPrank();
 
         (uint256 lockedAmount,,, uint256 rewardsEarned) = staking.stakings(bob);
         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-        assertEq(initialWalletBalance + minToReward, endWalletBalance);
+        assertEq(initialWalletBalance + minPerWallet, endWalletBalance);
         assertEq(lockedAmount, 0);
         assertTrue(rewardsEarned > 0);
     }
@@ -215,8 +215,8 @@ contract LPStakingTest is Test {
     function testPayTaxToWithdrawEarlier()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
         (uint256 lockedAmount,,,) = staking.stakings(bob);
@@ -225,20 +225,20 @@ contract LPStakingTest is Test {
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, false);
-        emit ILPStaking.StakeWithdrawn(bob, minToReward - tax);
-        staking.withdraw(bob, minToReward);
+        emit ILPStaking.StakeWithdrawn(bob, minPerWallet - tax);
+        staking.withdraw(bob, minPerWallet);
         vm.stopPrank();
 
         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-        assertEq(initialWalletBalance + minToReward - tax, endWalletBalance);
+        assertEq(initialWalletBalance + minPerWallet - tax, endWalletBalance);
     }
 
     function testCanWithdrawAfterPeriodFinish()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         vm.warp(staking.periodFinish() + 3 days);
 
@@ -246,14 +246,14 @@ contract LPStakingTest is Test {
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ILPStaking.StakeWithdrawn(bob, minToReward);
-        staking.withdraw(bob, minToReward);
+        emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
+        staking.withdraw(bob, minPerWallet);
         vm.stopPrank();
 
         (uint256 lockedAmount,,, uint256 rewardsEarned) = staking.stakings(bob);
         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-        assertEq(initialWalletBalance + minToReward, endWalletBalance);
+        assertEq(initialWalletBalance + minPerWallet, endWalletBalance);
         assertEq(lockedAmount, 0);
         assertTrue(rewardsEarned > 0);
     }
@@ -261,8 +261,8 @@ contract LPStakingTest is Test {
     function testCanWithdrawAfterEmergencyWithdraw()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
 
@@ -277,15 +277,15 @@ contract LPStakingTest is Test {
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ILPStaking.StakeWithdrawn(bob, minToReward);
-        staking.withdraw(bob, minToReward);
+        emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
+        staking.withdraw(bob, minPerWallet);
         vm.stopPrank();
 
         (uint256 endLockedAmount,,,) = staking.stakings(bob);
         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
         uint256 endRewards = staking.calculateRewards(bob);
 
-        assertEq(initialWalletBalance + minToReward, endWalletBalance);
+        assertEq(initialWalletBalance + minPerWallet, endWalletBalance);
         assertEq(endLockedAmount, 0);
         assertEq(initialRewards, endRewards);
         assertTrue(endRewards > 0);
@@ -305,10 +305,10 @@ contract LPStakingTest is Test {
     function testCanCheckRewards()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasBalance(mary, minToReward)
-        hasStaked(bob, minToReward)
-        hasStaked(mary, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasBalance(mary, minPerWallet)
+        hasStaked(bob, minPerWallet)
+        hasStaked(mary, minPerWallet)
     {
         uint256 bobRewards1 = staking.calculateRewards(bob);
         uint256 maryRewards1 = staking.calculateRewards(mary);
@@ -345,8 +345,8 @@ contract LPStakingTest is Test {
     function testRevertClaimStakeWhenWalletRewardsAreZero()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         vm.warp(block.timestamp + 2 days);
 
@@ -359,8 +359,8 @@ contract LPStakingTest is Test {
     function testCanClaimRewards()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasStaked(bob, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasStaked(bob, minPerWallet)
     {
         vm.warp(block.timestamp + 10 days);
         uint256 initialRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
@@ -384,14 +384,14 @@ contract LPStakingTest is Test {
     function testCanClaimFees()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasBalance(mary, minToReward)
-        hasStaked(bob, minToReward)
-        hasStaked(mary, minToReward)
-        withdrawn(bob, minToReward, 0)
-        withdrawn(mary, minToReward, 0)
+        hasBalance(bob, minPerWallet)
+        hasBalance(mary, minPerWallet)
+        hasStaked(bob, minPerWallet)
+        hasStaked(mary, minPerWallet)
+        withdrawn(bob, minPerWallet, 0)
+        withdrawn(mary, minPerWallet, 0)
     {
-        uint256 feesToClaim = staking.getFees(minToReward) * 2;
+        uint256 feesToClaim = staking.getFees(minPerWallet) * 2;
         uint256 currentFeesAvailable = staking.collectedFees();
 
         assertEq(feesToClaim, currentFeesAvailable);
@@ -415,12 +415,12 @@ contract LPStakingTest is Test {
     function testCanDoEmergencyWithdraw()
         external
         initialized(period)
-        hasBalance(bob, minToReward)
-        hasBalance(mary, minToReward)
-        hasStaked(bob, minToReward)
-        hasStaked(mary, minToReward)
+        hasBalance(bob, minPerWallet)
+        hasBalance(mary, minPerWallet)
+        hasStaked(bob, minPerWallet)
+        hasStaked(mary, minPerWallet)
     {
-        uint256 feesToClaim = staking.getFees(minToReward) * 2;
+        uint256 feesToClaim = staking.getFees(minPerWallet) * 2;
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
@@ -453,12 +453,19 @@ contract LPStakingTest is Test {
         assertEq(staking.withdrawEarlierFee().intoUint256(), newFee);
     }
 
-    function testUpdateMinStakedToReward() external initialized(period) {
+    function testRevertUpdateMinPerWalletWhenZero() external initialized(period) {
         vm.startPrank(owner);
-        uint256 newMinToReward = staking.minStakedToReward() * 2;
-        staking.updateMinStakedToReward(newMinToReward);
+        vm.expectRevert(ILPStaking.Staking_Insufficient_Amount.selector);
+        staking.updateMinPerWallet(0);
+        vm.stopPrank();
+    }
+
+    function testUpdateMinPerWallet() external initialized(period) {
+        vm.startPrank(owner);
+        uint256 newMinPerWallet = staking.minPerWallet() * 2;
+        staking.updateMinPerWallet(newMinPerWallet);
         vm.stopPrank();
 
-        assertEq(staking.minStakedToReward(), newMinToReward);
+        assertEq(staking.minPerWallet(), newMinPerWallet);
     }
 }
