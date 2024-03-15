@@ -12,7 +12,7 @@ import {IGauge} from "./interfaces/IGauge.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {console2} from "forge-std/console2.sol";
 
-contract LPStaking is Ownable, Pausable, ReentrancyGuard {
+contract LPStakingV2 is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     //////////////////////////////////////
@@ -23,11 +23,13 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     UD60x18 public withdrawEarlierFee = ud(0.1e18);
     uint256 public withdrawEarlierFeeLockTime = 30 days;
     uint256 public minPerWallet = 0.000003 ether;
+    uint256 public rewardsPerSecond;
     uint256 public totalStaked;
     uint256 public collectedFees;
     uint256 public periodFinish;
     address public lpToken;
     address public rewardsToken;
+    address public gaugeRewardsToken;
     address public gauge;
 
     mapping(address account => ILPStaking.User user) public stakings;
@@ -36,7 +38,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     // MODIFIERS
     //////////////////////////////////////
 
-    modifier canStake(address wallet, uint256 amount) {
+    modifier canStake(uint256 amount) {
         if (block.timestamp > periodFinish) {
             revert ILPStaking.Staking_Period_Ended();
         }
@@ -50,10 +52,23 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _lpToken, address _rewardsToken, address _gauge) Ownable(msg.sender) {
+    modifier canWithdraw(address wallet, uint256 amount) {
+        ILPStaking.User memory user = stakings[wallet];
+
+        if (user.lockedAmount == 0) revert ILPStaking.Staking_No_Balance_Staked();
+        if (amount == 0) revert ILPStaking.Staking_Insufficient_Amount();
+        if (amount > user.lockedAmount) revert ILPStaking.Staking_Amount_Exceeds_Balance();
+        if (amount < minPerWallet) revert ILPStaking.Staking_Insufficient_Amount();
+        _;
+    }
+
+    constructor(address _lpToken, address _rewardsToken, address _gauge, address _gaugeRewardsToken)
+        Ownable(msg.sender)
+    {
         lpToken = _lpToken;
         rewardsToken = _rewardsToken;
         gauge = _gauge;
+        gaugeRewardsToken = _gaugeRewardsToken;
 
         _pause();
     }
@@ -62,13 +77,14 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     // EXTERNAL FUNCTIONS
     //////////////////////////////////////
 
-    function init(uint256 initialDuration) external onlyOwner whenPaused {
+    function init(uint256 initialDuration, uint256 rewardsPerDay) external onlyOwner whenPaused {
         periodFinish = block.timestamp + initialDuration;
+        rewardsPerSecond = rewardsPerDay / 86400;
 
         _unpause();
     }
 
-    function stake(address wallet, uint256 amount) external whenNotPaused canStake(wallet, amount) nonReentrant {
+    function stake(address wallet, uint256 amount) external whenNotPaused canStake(amount) nonReentrant {
         ILPStaking.User storage user = stakings[wallet];
 
         user.rewardsEarned = calculateRewards(wallet); // update user rewards earned so far
@@ -86,16 +102,8 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         IGauge(gauge).deposit(amount);
     }
 
-    function withdraw(address wallet, uint256 amount) external nonReentrant {
-        if (amount == 0) revert ILPStaking.Staking_Insufficient_Amount();
-        if (amount < minPerWallet) revert ILPStaking.Staking_Insufficient_Amount();
-
+    function withdraw(address wallet, uint256 amount) external canWithdraw(wallet, amount) nonReentrant {
         ILPStaking.User storage user = stakings[wallet];
-        uint256 balance = user.lockedAmount;
-
-        if (balance == 0) revert ILPStaking.Staking_No_Balance_Staked();
-        if (amount > balance) revert ILPStaking.Staking_Amount_Exceeds_Balance();
-
         uint256 fee = 0;
 
         if (block.timestamp < user.lastUpdate + withdrawEarlierFeeLockTime) {
@@ -111,16 +119,17 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
         totalStaked -= amount; // update total LP staked in the contract
 
-        // Remove LP from the gauge if is not paused, otherwise the lp will be on the contract already
-        if (!paused()) _withdrawFromGauge(amount - fee);
+        uint256 amountLessFees = amount - fee;
+
+        // Remove LP from the gauge if is not paused, otherwise the lp will be already in the contract
+        if (!paused()) _withdrawFromGauge(amountLessFees);
 
         // Give user LP back
-        ERC20(lpToken).safeTransfer(wallet, amount - fee);
+        ERC20(lpToken).safeTransfer(wallet, amountLessFees);
     }
 
     function claimRewards(address wallet) external nonReentrant {
         uint256 _totalRewards = totalRewards();
-        _claimRewardsFromGauge();
 
         if (_totalRewards == 0) revert ILPStaking.Staking_No_Rewards_Available();
 
@@ -166,6 +175,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         // Perform external transfers
         emit ILPStaking.EmergencyWithdrawnFunds(fees);
         ERC20(lpToken).safeTransfer(owner(), fees);
+        ERC20(gaugeRewardsToken).safeTransfer(owner(), gaugeRewardsBalance);
 
         _pause();
     }
@@ -215,7 +225,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     }
 
     function totalRewards() public view returns (uint256) {
-        return IGauge(gauge).earned(address(this)) + ERC20(rewardsToken).balanceOf(address(this));
+        return ERC20(rewardsToken).balanceOf(address(this));
     }
 
     function calculateRewards(address account) public view returns (uint256) {

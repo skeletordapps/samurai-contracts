@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {LPStaking} from "../src/LPStaking.sol";
@@ -10,9 +10,9 @@ contract DeployLPStaking is Script {
         external
         returns (LPStaking staking, address lpToken, address rewardsToken, address gauge)
     {
-        lpToken = isFork ? vm.envAddress("TEST_LP_TOKEN_ADDRESS") : vm.envAddress("SAM_LP_TOKEN_ADDRESS");
-        rewardsToken = vm.envAddress("REWARDS_TOKEN_ADDRESS");
-        gauge = vm.envAddress("GAUGE_TOKEN_ADDRESS");
+        lpToken = isFork ? vm.envAddress("BASE_TEST_LP_TOKEN_ADDRESS") : vm.envAddress("BASE_LP_TOKEN_ADDRESS");
+        rewardsToken = vm.envAddress("BASE_REWARDS_TOKEN_ADDRESS");
+        gauge = vm.envAddress("BASE_GAUGE_ADDRESS");
 
         vm.startBroadcast();
         staking = new LPStaking(lpToken, rewardsToken, gauge);
