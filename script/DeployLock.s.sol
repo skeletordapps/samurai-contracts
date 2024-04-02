@@ -4,19 +4,21 @@ pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {SamMock} from "../src/mocks/SamMock.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract DeployLock is Script {
     function run() external returns (SamLock lock, address sam) {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+        uint256 minToLock = 30_000 ether;
 
         vm.startBroadcast(privateKey);
-        ERC20Mock token = new ERC20Mock();
+        SamMock samurai = new SamMock("SAMURAI", "SAM");
 
-        lock = new SamLock(address(token));
+        lock = new SamLock(address(samurai), minToLock);
         vm.stopBroadcast();
 
-        return (lock, address(token));
+        return (lock, address(samurai));
     }
 
     function testMock() public {}
