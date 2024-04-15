@@ -93,7 +93,7 @@ contract SamLockTest is Test {
         ERC20(token).approve(address(lock), amount);
 
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Locked(wallet, amount, lock.getLockInfosCount(wallet));
+        emit ISamLock.Locked(wallet, amount, lock.nextLockIndex());
         lock.lock(wallet, amount, lock.THREE_MONTHS());
         vm.stopPrank();
         _;
@@ -118,7 +118,7 @@ contract SamLockTest is Test {
         lock.lock(bob, 60_000 ether, lock.SIX_MONTHS());
         vm.stopPrank();
 
-        assertEq(lock.getLockInfosCount(bob), 2);
+        assertEq(lock.getLockInfos(bob).length, 2);
     }
 
     function testRevertWithdrawWithZeroAmount() external {
@@ -153,10 +153,11 @@ contract SamLockTest is Test {
     function testCanWithdraw() external locked(bob, 100_000 ether) {
         ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
 
+        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 lockIndex = lock.getLockInfosCount(bob) - 1;
+
         uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
         assertEq(initialPoints, 0);
@@ -189,10 +190,10 @@ contract SamLockTest is Test {
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 lockIndex = lock.getLockInfosCount(bob) - 1;
         uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
         assertEq(initialPoints, 0);
@@ -224,10 +225,11 @@ contract SamLockTest is Test {
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 lockIndex = lock.getLockInfosCount(bob) - 1;
+
         uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
         assertEq(initialPoints, 0);
@@ -259,10 +261,11 @@ contract SamLockTest is Test {
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 lockIndex = lock.getLockInfosCount(bob) - 1;
+
         uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
         assertEq(initialPoints, 0);
@@ -294,10 +297,10 @@ contract SamLockTest is Test {
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 lockIndex = lock.getLockInfosCount(bob) - 1;
         uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
         assertEq(initialPoints, 0);
@@ -424,8 +427,17 @@ contract SamLockTest is Test {
 
     function testRevertGetLockInfosWhithoutAny() external {
         vm.startPrank(bob);
-        vm.expectRevert(ISamLock.SamLock__NotFound.selector);
-        lock.getLockInfos(bob);
+        ISamLock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
         vm.stopPrank();
+
+        assertEq(lockInfos.length, 0);
+    }
+
+    function testShouldReturnEmptyLockInfosWhenHasNoLock() external {
+        vm.startPrank(bob);
+        ISamLock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
+        vm.stopPrank();
+
+        assertEq(lockInfos.length, 0);
     }
 }

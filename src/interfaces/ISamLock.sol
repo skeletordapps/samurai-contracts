@@ -5,6 +5,7 @@ import {UD60x18} from "@prb/math/src/UD60x18.sol";
 
 interface ISamLock {
     struct LockInfo {
+        uint256 lockIndex;
         uint256 lockedAmount;
         uint256 withdrawnAmount;
         uint256 lockedAt;

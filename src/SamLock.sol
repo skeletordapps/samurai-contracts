@@ -14,6 +14,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     // Define lock periods (in seconds)
+    uint256 public constant THREE_MINUTES = 3 minutes;
     uint256 public constant THREE_MONTHS = 3 * 30 days;
     uint256 public constant SIX_MONTHS = 6 * 30 days;
     uint256 public constant NINE_MONTHS = 9 * 30 days;
@@ -21,6 +22,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
     address public immutable sam;
     uint256 public minToLock;
+    uint256 public totalLocked;
+    uint256 public nextLockIndex;
 
     mapping(address wallet => ISamLock.LockInfo[]) public lockings;
     mapping(uint256 period => uint256 multiplier) public multipliers;
@@ -28,6 +31,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
         sam = _sam;
 
+        multipliers[THREE_MINUTES] = 1e18;
         multipliers[THREE_MONTHS] = 1e18;
         multipliers[SIX_MONTHS] = 3e18;
         multipliers[NINE_MONTHS] = 5e18;
@@ -43,13 +47,16 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     function lock(address wallet, uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
         if (amount < minToLock) revert ISamLock.SamLock__InsufficientAmount();
         if (
-            lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
-                && lockPeriod != TWELVE_MONTHS
+            lockPeriod != THREE_MINUTES && lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS
+                && lockPeriod != NINE_MONTHS && lockPeriod != TWELVE_MONTHS
         ) revert ISamLock.SamLock__Invalid_Period();
 
         ERC20(sam).safeTransferFrom(wallet, address(this), amount);
 
+        uint256 lockIndex = nextLockIndex;
+
         ISamLock.LockInfo memory newLock = ISamLock.LockInfo({
+            lockIndex: lockIndex,
             lockedAmount: amount,
             withdrawnAmount: 0,
             lockedAt: block.timestamp,
@@ -59,7 +66,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         });
 
         lockings[wallet].push(newLock);
-        emit ISamLock.Locked(wallet, amount, getLockInfosCount(wallet) - 1);
+        nextLockIndex++;
+        emit ISamLock.Locked(wallet, amount, lockIndex);
     }
 
     /// @notice Withdraw locked SAM tokens and earned points after the lock period ends
@@ -110,15 +118,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     /// @return lockInfos Array containing the user's lock information entries
     /// @dev Reverts with ISamLock.SamLock__NotFound if there are no lock entries for the user
     function getLockInfos(address wallet) public view returns (ISamLock.LockInfo[] memory) {
-        if (lockings[wallet].length == 0) revert ISamLock.SamLock__NotFound();
         return lockings[wallet];
-    }
-
-    /// @notice Get the total number of lock information entries for a specific user (address)
-    /// @param wallet Address of the user
-    /// @return count The number of lock entries for the user (uint256)
-    function getLockInfosCount(address wallet) public view returns (uint256) {
-        return lockings[wallet].length;
     }
 
     /// @notice Calculate the total points earned for a specific lock entry

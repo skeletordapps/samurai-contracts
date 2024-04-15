@@ -6,7 +6,7 @@ import {Sam} from "../src/Sam.sol";
 
 contract DeploySam is Script {
     function run() external returns (Sam sam) {
-        string memory name = "SAMURAI TOKEN";
+        string memory name = "SAMURAI";
         string memory symbol = "SAM";
         uint256 supply = 130_000_000 ether;
 
