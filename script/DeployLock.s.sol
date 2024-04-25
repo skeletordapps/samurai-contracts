@@ -11,14 +11,14 @@ contract DeployLock is Script {
     function run() external returns (SamLock lock, address sam) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         uint256 minToLock = 30_000 ether;
+        address samurai = 0xed1779845520339693CDBffec49a74246E7D671b;
 
         vm.startBroadcast(privateKey);
-        SamMock samurai = new SamMock("SAMURAI", "SAM");
 
-        lock = new SamLock(address(samurai), minToLock);
+        lock = new SamLock(samurai, minToLock);
         vm.stopBroadcast();
 
-        return (lock, address(samurai));
+        return (lock, samurai);
     }
 
     function testMock() public {}

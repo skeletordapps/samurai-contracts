@@ -14,7 +14,6 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     // Define lock periods (in seconds)
-    uint256 public constant THREE_MINUTES = 3 minutes;
     uint256 public constant THREE_MONTHS = 3 * 30 days;
     uint256 public constant SIX_MONTHS = 6 * 30 days;
     uint256 public constant NINE_MONTHS = 9 * 30 days;
@@ -31,7 +30,6 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
         sam = _sam;
 
-        multipliers[THREE_MINUTES] = 1e18;
         multipliers[THREE_MONTHS] = 1e18;
         multipliers[SIX_MONTHS] = 3e18;
         multipliers[NINE_MONTHS] = 5e18;
@@ -47,8 +45,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     function lock(address wallet, uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
         if (amount < minToLock) revert ISamLock.SamLock__InsufficientAmount();
         if (
-            lockPeriod != THREE_MINUTES && lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS
-                && lockPeriod != NINE_MONTHS && lockPeriod != TWELVE_MONTHS
+            lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
+                && lockPeriod != TWELVE_MONTHS
         ) revert ISamLock.SamLock__Invalid_Period();
 
         ERC20(sam).safeTransferFrom(wallet, address(this), amount);
@@ -66,6 +64,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         });
 
         lockings[wallet].push(newLock);
+        totalLocked += amount;
         nextLockIndex++;
         emit ISamLock.Locked(wallet, amount, lockIndex);
     }
@@ -82,6 +81,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ISamLock.SamLock__InsufficientAmount();
 
         lockings[wallet][lockIndex].withdrawnAmount += amount;
+        totalLocked -= amount;
         emit ISamLock.Withdrawn(wallet, amount, lockIndex);
 
         ERC20(sam).safeTransfer(wallet, amount);
