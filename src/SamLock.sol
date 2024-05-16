@@ -97,6 +97,10 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
+    function updateMinToLock(uint256 _minToLock) external onlyOwner nonReentrant {
+        minToLock = _minToLock;
+    }
+
     function updateMultipliers(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x)
         external
         onlyOwner
