@@ -37,7 +37,6 @@ interface ISamuraiTiers {
         uint256 maxLocking;
         uint256 minLPStaking;
         uint256 maxLPStaking;
-        uint256 samuraiPoints;
     }
 
     event Added(uint256 index);

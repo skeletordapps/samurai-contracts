@@ -30,25 +30,18 @@ contract DeploySamuraiTiers is Script {
     }
 
     function addInitialTiers(SamuraiTiers samuraiTiers) public {
-        ISamuraiTiers.Tier memory Ronin =
-            ISamuraiTiers.Tier("Ronin", 0, 15_000 ether, 29_999 ether, 20 ether, 44 ether, 15_000);
+        ISamuraiTiers.Tier memory Ronin = ISamuraiTiers.Tier("Ronin", 0, 15_000 ether, 29_999 ether, 20 ether, 44 ether);
         ISamuraiTiers.Tier memory Gokenin =
-            ISamuraiTiers.Tier("Gokenin", 0, 30_000 ether, 59_999 ether, 45 ether, 90 ether, 30_000);
+            ISamuraiTiers.Tier("Gokenin", 0, 30_000 ether, 59_999 ether, 45 ether, 90 ether);
         ISamuraiTiers.Tier memory Goshi =
-            ISamuraiTiers.Tier("Goshi", 0, 60_000 ether, 99_999 ether, 91 ether, 150 ether, 60_000);
+            ISamuraiTiers.Tier("Goshi", 0, 60_000 ether, 99_999 ether, 91 ether, 150 ether);
         ISamuraiTiers.Tier memory Hatamoto =
-            ISamuraiTiers.Tier("Hatamoto", 0, 100_000 ether, 199_999 ether, 151 ether, 300 ether, 100_000);
+            ISamuraiTiers.Tier("Hatamoto", 0, 100_000 ether, 199_999 ether, 151 ether, 300 ether);
         ISamuraiTiers.Tier memory Shogun =
-            ISamuraiTiers.Tier("Shogun", 1, 200_000 ether, 999_999_999 ether, 301 ether, 999_999_999 ether, 200_000);
+            ISamuraiTiers.Tier("Shogun", 1, 200_000 ether, 999_999_999 ether, 301 ether, 999_999_999 ether);
 
         samuraiTiers.addTier(
-            Ronin.name,
-            Ronin.numOfSamNfts,
-            Ronin.minLocking,
-            Ronin.maxLocking,
-            Ronin.minLPStaking,
-            Ronin.maxLPStaking,
-            Ronin.samuraiPoints
+            Ronin.name, Ronin.numOfSamNfts, Ronin.minLocking, Ronin.maxLocking, Ronin.minLPStaking, Ronin.maxLPStaking
         );
 
         samuraiTiers.addTier(
@@ -57,18 +50,11 @@ contract DeploySamuraiTiers is Script {
             Gokenin.minLocking,
             Gokenin.maxLocking,
             Gokenin.minLPStaking,
-            Gokenin.maxLPStaking,
-            Gokenin.samuraiPoints
+            Gokenin.maxLPStaking
         );
 
         samuraiTiers.addTier(
-            Goshi.name,
-            Goshi.numOfSamNfts,
-            Goshi.minLocking,
-            Goshi.maxLocking,
-            Goshi.minLPStaking,
-            Goshi.maxLPStaking,
-            Goshi.samuraiPoints
+            Goshi.name, Goshi.numOfSamNfts, Goshi.minLocking, Goshi.maxLocking, Goshi.minLPStaking, Goshi.maxLPStaking
         );
 
         samuraiTiers.addTier(
@@ -77,8 +63,7 @@ contract DeploySamuraiTiers is Script {
             Hatamoto.minLocking,
             Hatamoto.maxLocking,
             Hatamoto.minLPStaking,
-            Hatamoto.maxLPStaking,
-            Hatamoto.samuraiPoints
+            Hatamoto.maxLPStaking
         );
 
         samuraiTiers.addTier(
@@ -87,8 +72,7 @@ contract DeploySamuraiTiers is Script {
             Shogun.minLocking,
             Shogun.maxLocking,
             Shogun.minLPStaking,
-            Shogun.maxLPStaking,
-            Shogun.samuraiPoints
+            Shogun.maxLPStaking
         );
     }
 

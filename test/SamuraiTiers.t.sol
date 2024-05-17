@@ -46,7 +46,7 @@ contract SamuraiTiersTest is Test {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit ISamuraiTiers.Added(1);
-        samuraiTiers.addTier("Shogun", 1, 200_000, 399_000, 900, 1800, 30_000);
+        samuraiTiers.addTier("Shogun", 1, 200_000, 399_000, 900, 1800);
         vm.stopPrank();
 
         uint256 index = samuraiTiers.counter();
@@ -56,8 +56,7 @@ contract SamuraiTiersTest is Test {
             uint256 minStaking,
             uint256 maxStaking,
             uint256 minLPStaking,
-            uint256 maxLPStaking,
-            uint256 samuraiPoints
+            uint256 maxLPStaking
         ) = samuraiTiers.tiers(index);
 
         assertEq(index, 1);
@@ -67,7 +66,6 @@ contract SamuraiTiersTest is Test {
         assertEq(maxStaking, 399_000);
         assertEq(minLPStaking, 900);
         assertEq(maxLPStaking, 1800);
-        assertEq(samuraiPoints, 30_000);
     }
 
     modifier tierAdded(
@@ -76,34 +74,33 @@ contract SamuraiTiersTest is Test {
         uint256 minStaking,
         uint256 maxStaking,
         uint256 minLPStaking,
-        uint256 maxLPStaking,
-        uint256 samuraiPoints
+        uint256 maxLPStaking
     ) {
         vm.startPrank(owner);
-        samuraiTiers.addTier(name, numberOfSumNfts, minStaking, maxStaking, minLPStaking, maxLPStaking, samuraiPoints);
+        samuraiTiers.addTier(name, numberOfSumNfts, minStaking, maxStaking, minLPStaking, maxLPStaking);
         vm.stopPrank();
         _;
     }
 
-    function testCanRemoveTier() external tierAdded("Shogun", 1, 200_000, 399_000, 900, 1800, 30_000) {
+    function testCanRemoveTier() external tierAdded("Shogun", 1, 200_000, 399_000, 900, 1800) {
         uint256 index = samuraiTiers.counter();
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ISamuraiTiers.Removed(ISamuraiTiers.Tier("Shogun", 1, 200_000, 399_000, 900, 1800, 30_000));
+        emit ISamuraiTiers.Removed(ISamuraiTiers.Tier("Shogun", 1, 200_000, 399_000, 900, 1800));
         samuraiTiers.removeTier(index);
         vm.stopPrank();
 
         assertEq(samuraiTiers.counter(), 0);
     }
 
-    function testCanUpdateTier() external tierAdded("Shogun", 1, 200_000, 399_000, 900, 1800, 30_000) {
+    function testCanUpdateTier() external tierAdded("Shogun", 1, 200_000, 399_000, 900, 1800) {
         uint256 index = samuraiTiers.counter();
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit ISamuraiTiers.Updated(1);
-        samuraiTiers.updateTier(index, "Hatamoto", 5, 100_000, 199_000, 450, 900, 50_000);
+        samuraiTiers.updateTier(index, "Hatamoto", 5, 100_000, 199_000, 450, 900);
         vm.stopPrank();
 
         (
@@ -112,8 +109,7 @@ contract SamuraiTiersTest is Test {
             uint256 minStaking,
             uint256 maxStaking,
             uint256 minLPStaking,
-            uint256 maxLPStaking,
-            uint256 samuraiPoints
+            uint256 maxLPStaking
         ) = samuraiTiers.tiers(index);
 
         assertEq(index, 1);
@@ -123,30 +119,22 @@ contract SamuraiTiersTest is Test {
         assertEq(maxStaking, 199_000);
         assertEq(minLPStaking, 450);
         assertEq(maxLPStaking, 900);
-        assertEq(samuraiPoints, 50_000);
     }
 
     modifier setTiers() {
-        ISamuraiTiers.Tier memory Ronin =
-            ISamuraiTiers.Tier("Ronin", 0, 15_000 ether, 29_999 ether, 20 ether, 44 ether, 15_000);
+        ISamuraiTiers.Tier memory Ronin = ISamuraiTiers.Tier("Ronin", 0, 15_000 ether, 29_999 ether, 20 ether, 44 ether);
         ISamuraiTiers.Tier memory Gokenin =
-            ISamuraiTiers.Tier("Gokenin", 0, 30_000 ether, 59_999 ether, 45 ether, 90 ether, 30_000);
+            ISamuraiTiers.Tier("Gokenin", 0, 30_000 ether, 59_999 ether, 45 ether, 90 ether);
         ISamuraiTiers.Tier memory Goshi =
-            ISamuraiTiers.Tier("Goshi", 0, 60_000 ether, 99_999 ether, 91 ether, 150 ether, 60_000);
+            ISamuraiTiers.Tier("Goshi", 0, 60_000 ether, 99_999 ether, 91 ether, 150 ether);
         ISamuraiTiers.Tier memory Hatamoto =
-            ISamuraiTiers.Tier("Hatamoto", 0, 100_000 ether, 199_999 ether, 151 ether, 300 ether, 100_000);
+            ISamuraiTiers.Tier("Hatamoto", 0, 100_000 ether, 199_999 ether, 151 ether, 300 ether);
         ISamuraiTiers.Tier memory Shogun =
-            ISamuraiTiers.Tier("Shogun", 1, 200_000 ether, 999_999_999 ether, 301 ether, 999_999_999 ether, 200_000);
+            ISamuraiTiers.Tier("Shogun", 1, 200_000 ether, 999_999_999 ether, 301 ether, 999_999_999 ether);
 
         vm.startPrank(owner);
         samuraiTiers.addTier(
-            Ronin.name,
-            Ronin.numOfSamNfts,
-            Ronin.minLocking,
-            Ronin.maxLocking,
-            Ronin.minLPStaking,
-            Ronin.maxLPStaking,
-            Ronin.samuraiPoints
+            Ronin.name, Ronin.numOfSamNfts, Ronin.minLocking, Ronin.maxLocking, Ronin.minLPStaking, Ronin.maxLPStaking
         );
         samuraiTiers.addTier(
             Gokenin.name,
@@ -154,18 +142,11 @@ contract SamuraiTiersTest is Test {
             Gokenin.minLocking,
             Gokenin.maxLocking,
             Gokenin.minLPStaking,
-            Gokenin.maxLPStaking,
-            Gokenin.samuraiPoints
+            Gokenin.maxLPStaking
         );
 
         samuraiTiers.addTier(
-            Goshi.name,
-            Goshi.numOfSamNfts,
-            Goshi.minLocking,
-            Goshi.maxLocking,
-            Goshi.minLPStaking,
-            Goshi.maxLPStaking,
-            Goshi.samuraiPoints
+            Goshi.name, Goshi.numOfSamNfts, Goshi.minLocking, Goshi.maxLocking, Goshi.minLPStaking, Goshi.maxLPStaking
         );
 
         samuraiTiers.addTier(
@@ -174,8 +155,7 @@ contract SamuraiTiersTest is Test {
             Hatamoto.minLocking,
             Hatamoto.maxLocking,
             Hatamoto.minLPStaking,
-            Hatamoto.maxLPStaking,
-            Hatamoto.samuraiPoints
+            Hatamoto.maxLPStaking
         );
 
         samuraiTiers.addTier(
@@ -184,8 +164,7 @@ contract SamuraiTiersTest is Test {
             Shogun.minLocking,
             Shogun.maxLocking,
             Shogun.minLPStaking,
-            Shogun.maxLPStaking,
-            Shogun.samuraiPoints
+            Shogun.maxLPStaking
         );
         vm.stopPrank();
         _;

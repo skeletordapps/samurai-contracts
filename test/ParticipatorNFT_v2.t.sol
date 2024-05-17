@@ -55,7 +55,7 @@ contract ParticipatorNFT_v2Test is Test {
         john = vm.addr(3);
         vm.label(john, "john");
 
-        randomUSDCHolder = 0x20FE51A9229EEf2cF8Ad9E89d91CAb9312cF3b7A;
+        randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
         vm.label(randomUSDCHolder, "randomUSDCHolder");
 
         token1 = participator.acceptedTokens(0);

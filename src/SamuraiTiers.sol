@@ -17,23 +17,38 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
 
     constructor() Ownable(msg.sender) {}
 
+    /**
+     * @notice Creates a new tier with the specified parameters.
+     * @dev Emits an Added event with the tier index.
+     * @param name: Name of the tier.
+     * @param numOfSamNfts: Minimum number of Sam NFTs required for the tier.
+     * @param minLocking: Minimum amount of Sam tokens locked required for the tier.
+     * @param maxLocking: Maximum amount of Sam tokens locked allowed for the tier.
+     * @param minLPStaking: Minimum amount of Sam/WETH LP tokens staked required for the tier.
+     * @param maxLPStaking: Maximum amount of Sam/WETH LP tokens staked allowed for the tier.
+     * Returns nothing.
+     */
     function addTier(
         string memory name,
         uint256 numOfSamNfts,
         uint256 minLocking,
         uint256 maxLocking,
         uint256 minLPStaking,
-        uint256 maxLPStaking,
-        uint256 samuraiPoints
+        uint256 maxLPStaking
     ) external onlyOwner nonReentrant {
         uint256 index = counter + 1;
-        tiers[index] =
-            ISamuraiTiers.Tier(name, numOfSamNfts, minLocking, maxLocking, minLPStaking, maxLPStaking, samuraiPoints);
+        tiers[index] = ISamuraiTiers.Tier(name, numOfSamNfts, minLocking, maxLocking, minLPStaking, maxLPStaking);
         counter++;
 
         emit ISamuraiTiers.Added(index);
     }
 
+    /**
+     * @notice Removes the tier at the specified index.
+     * @dev Emits a Removed event with the removed tier information.
+     * @param tierIndex: Index of the tier to remove.
+     * Returns nothing.
+     */
     function removeTier(uint256 tierIndex) external onlyOwner nonReentrant {
         ISamuraiTiers.Tier memory tierCopy = tiers[tierIndex];
         delete tiers[tierIndex];
@@ -42,6 +57,18 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         emit ISamuraiTiers.Removed(tierCopy);
     }
 
+    /**
+     * @notice Updates the information of an existing tier.
+     * @dev Emits an Updated event with the updated tier index.
+     * @param tierIndex: Index of the tier to update.
+     * @param name: New name for the tier.
+     * @param numOfSamNfts: New minimum number of Sam NFTs required for the tier.
+     * @param minLocking: New minimum amount of Sam tokens locked required for the tier.
+     * @param maxLocking: New maximum amount of Sam tokens locked allowed for the tier.
+     * @param minLPStaking: New minimum amount of Sam/WETH LP tokens staked required for the tier.
+     * @param maxLPStaking: New maximum amount of Sam/WETH LP tokens staked allowed for the tier.
+     * Returns nothing.
+     */
     function updateTier(
         uint256 tierIndex,
         string memory name,
@@ -49,19 +76,20 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         uint256 minLocking,
         uint256 maxLocking,
         uint256 minLPStaking,
-        uint256 maxLPStaking,
-        uint256 samuraiPoints
+        uint256 maxLPStaking
     ) external onlyOwner nonReentrant {
-        tiers[tierIndex] =
-            ISamuraiTiers.Tier(name, numOfSamNfts, minLocking, maxLocking, minLPStaking, maxLPStaking, samuraiPoints);
+        tiers[tierIndex] = ISamuraiTiers.Tier(name, numOfSamNfts, minLocking, maxLocking, minLPStaking, maxLPStaking);
         emit ISamuraiTiers.Updated(tierIndex);
     }
 
+    /**
+     * @notice Gets the tier a wallet belongs to based on Sam NFT holdings, lockups, and LP staking.
+     * @param wallet: Address of the wallet to check.
+     * @return tier: The tier information for the wallet.
+     */
     function getTier(address wallet) public view returns (ISamuraiTiers.Tier memory) {
-        console2.log("wallet", wallet);
         // Check SAM NFTs balance
         uint256 nftBalance = ISamNfts(nft).balanceOf(wallet);
-        console2.log("nftBalance", nftBalance);
 
         // Check Sam Lock balance
         ISamLock.LockInfo[] memory lockings = ISamLocks(lock).getLockInfos(wallet);
@@ -69,17 +97,11 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < lockings.length; i++) {
             totalLocked += lockings[i].lockedAmount - lockings[i].withdrawnAmount;
         }
-        console2.log("totalLocked", totalLocked);
 
         // Check SAM/WETH gauge balance
         uint256 lpStaked = ISamGaugeLP(lpGauge).balanceOf(wallet);
-        console2.log("lpStaked", lpStaked);
-        console2.log(" ");
 
-        if (nftBalance >= 1) {
-            console2.log("Shogun");
-            return getTierByName("Shogun");
-        } // returns shogun tier
+        if (nftBalance >= 1) return getTierByName("Shogun"); // returns shogun tier
 
         // Iterate through tiers to find a matching tier
         for (uint256 i = 1; i <= counter; i++) {
@@ -95,9 +117,14 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         }
 
         // If no tier matches, return the default tier (optional)
-        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0, 0); // Replace with your default tier values
+        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0); // Replace with your default tier values
     }
 
+    /**
+     * @notice Gets the tier information by its name.
+     * @param name: Name of the tier to get.
+     * @return tier: The tier information matching the name.
+     */
     function getTierByName(string memory name) public view returns (ISamuraiTiers.Tier memory) {
         bytes32 nameHash = keccak256(abi.encodePacked(name));
 
@@ -106,6 +133,6 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
             if (nameHash == tierNameHash) return tiers[i];
         }
 
-        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0, 0);
+        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0);
     }
 }
