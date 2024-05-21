@@ -4,17 +4,17 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console2} from "forge-std/console2.sol";
-import {ParticipatorNFT_v2} from "../src/IDO/ParticipatorNFT_v2.sol";
-import {DeployParticipatorNFT_v2} from "../script/DeployParticipatorNFT_v2.s.sol";
+import {ParticipatorNFT} from "../src/IDO/ParticipatorNFT.sol";
+import {DeployParticipatorNFT} from "../script/DeployParticipatorNFT.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 
-contract ParticipatorNFT_v2Test is Test {
+contract ParticipatorNFTTest is Test {
     uint256 fork;
     string public RPC_URL;
 
-    DeployParticipatorNFT_v2 deployer;
-    ParticipatorNFT_v2 participator;
+    DeployParticipatorNFT deployer;
+    ParticipatorNFT participator;
 
     address owner;
     address bob;
@@ -43,7 +43,7 @@ contract ParticipatorNFT_v2Test is Test {
         fork = vm.createFork(RPC_URL);
         vm.selectFork(fork);
 
-        deployer = new DeployParticipatorNFT_v2();
+        deployer = new DeployParticipatorNFT();
         participator = deployer.run();
         owner = participator.owner();
         bob = vm.addr(1);

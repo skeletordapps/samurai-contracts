@@ -9,7 +9,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IParticipator} from "../interfaces/IParticipator.sol";
 
-contract ParticipatorV1 is Ownable, Pausable, ReentrancyGuard {
+contract Participator is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     address[] public acceptedTokens;

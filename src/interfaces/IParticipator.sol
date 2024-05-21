@@ -7,6 +7,13 @@ interface IParticipator {
 
     event Allocated(address indexed wallet, address token, uint256 amount);
     event Whitelisted(address[] addresses);
+    event Whitelisted(address indexed wallet);
     event PublicAllowed();
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
+
+    struct WalletRange {
+        string name;
+        uint256 min;
+        uint256 max;
+    }
 }

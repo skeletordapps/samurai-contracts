@@ -4,17 +4,17 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console2} from "forge-std/console2.sol";
-import {ParticipatorV1} from "../src/IDO/ParticipatorV1.sol";
-import {DeployParticipatorV1} from "../script/DeployParticipatorV1.s.sol";
+import {Participator} from "../src/IDO/Participator.sol";
+import {DeployParticipator} from "../script/DeployParticipator.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 
-contract ParticipatorV1Test is Test {
+contract ParticipatorTest is Test {
     uint256 fork;
     string public RPC_URL;
 
-    DeployParticipatorV1 deployer;
-    ParticipatorV1 participator;
+    DeployParticipator deployer;
+    Participator participator;
 
     address owner;
     address bob;
@@ -36,7 +36,7 @@ contract ParticipatorV1Test is Test {
         fork = vm.createFork(RPC_URL);
         vm.selectFork(fork);
 
-        deployer = new DeployParticipatorV1();
+        deployer = new DeployParticipator();
         participator = deployer.run();
         owner = participator.owner();
         bob = vm.addr(1);

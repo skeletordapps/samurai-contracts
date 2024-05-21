@@ -2,12 +2,12 @@
 pragma solidity ^0.8.23;
 
 import {Script} from "forge-std/Script.sol";
-import {ParticipatorNFT_v2} from "../src/IDO/ParticipatorNFT_v2.sol";
+import {ParticipatorNFT} from "../src/IDO/ParticipatorNFT.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
 import {console2} from "forge-std/console2.sol";
 
-contract DeployParticipatorNFT_v2 is Script {
-    function run() external returns (ParticipatorNFT_v2 participatorNFT_v2) {
+contract DeployParticipatorNFT is Script {
+    function run() external returns (ParticipatorNFT participatorNFT) {
         address[] memory acceptedTokens;
 
         uint256 minA = 1;
@@ -25,12 +25,12 @@ contract DeployParticipatorNFT_v2 is Script {
         acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
         acceptedTokens[1] = vm.envAddress("BASE_USDC_BASE_ADDRESS");
 
-        participatorNFT_v2 = new ParticipatorNFT_v2(
+        participatorNFT = new ParticipatorNFT(
             acceptedTokens, minA, maxA, minB, maxB, minPublic, maxPublic, pricePerToken, maxAllocations
         );
         vm.stopBroadcast();
 
-        return participatorNFT_v2;
+        return participatorNFT;
     }
 
     function testMock() public {}

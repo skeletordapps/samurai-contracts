@@ -45,4 +45,5 @@ interface ISamuraiTiers {
 
     function counter() external view returns (uint256);
     function tiers(uint256 index) external view returns (Tier memory);
+    function getTier(address wallet) external view returns (ISamuraiTiers.Tier memory);
 }

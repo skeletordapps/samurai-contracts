@@ -2,12 +2,12 @@
 pragma solidity ^0.8.23;
 
 import {Script} from "forge-std/Script.sol";
-import {ParticipatorV1} from "../src/IDO/ParticipatorV1.sol";
+import {Participator} from "../src/IDO/Participator.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
 import {console2} from "forge-std/console2.sol";
 
-contract DeployParticipatorV1 is Script {
-    function run() external returns (ParticipatorV1 participator) {
+contract DeployParticipator is Script {
+    function run() external returns (Participator participator) {
         address[] memory acceptedTokens;
 
         uint256 min = 100 * 1e6;
@@ -26,7 +26,7 @@ contract DeployParticipatorV1 is Script {
             acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
             acceptedTokens[1] = vm.envAddress("BASE_USDC_BASE_ADDRESS");
         }
-        participator = new ParticipatorV1(acceptedTokens, min, max, totalMax);
+        participator = new Participator(acceptedTokens, min, max, totalMax);
         vm.stopBroadcast();
 
         return participator;
