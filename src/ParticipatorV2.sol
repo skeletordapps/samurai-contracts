@@ -7,8 +7,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console2} from "forge-std/console2.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IParticipator} from "../interfaces/IParticipator.sol";
-import {ISamuraiTiers} from "../interfaces/ISamuraiTiers.sol";
+import {IParticipator} from "./interfaces/IParticipator.sol";
+import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 
 contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;

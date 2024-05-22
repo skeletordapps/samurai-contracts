@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {ParticipatorV2} from "../src/IDO/ParticipatorV2.sol";
+import {ParticipatorV2} from "../src/ParticipatorV2.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
 import {console2} from "forge-std/console2.sol";

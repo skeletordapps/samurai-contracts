@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Script} from "forge-std/Script.sol";
-import {ParticipatorNFT} from "../src/IDO/ParticipatorNFT.sol";
+import {ParticipatorNFT} from "../src/ParticipatorNFT.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
 import {console2} from "forge-std/console2.sol";
 

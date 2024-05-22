@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Script} from "forge-std/Script.sol";
-import {ParticipatorNFT_ETH} from "../src/IDO/ParticipatorNFT_ETH.sol";
+import {ParticipatorNFT_ETH} from "../src/ParticipatorNFT_ETH.sol";
 
 contract DeployParticipatorNFT_ETH is Script {
     function run() external returns (ParticipatorNFT_ETH participatorNFT_ETH) {

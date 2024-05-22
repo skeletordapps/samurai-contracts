@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console2} from "forge-std/console2.sol";
-import {ParticipatorNFT} from "../src/IDO/ParticipatorNFT.sol";
+import {ParticipatorNFT} from "../src/ParticipatorNFT.sol";
 import {DeployParticipatorNFT} from "../script/DeployParticipatorNFT.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";

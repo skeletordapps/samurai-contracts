@@ -7,12 +7,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console2} from "forge-std/console2.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IParticipator} from "../interfaces/IParticipator.sol";
+import {IParticipator} from "./interfaces/IParticipator.sol";
 
-contract ParticipatorNFT is Ownable, Pausable, ReentrancyGuard {
+contract ParticipatorNFT_ETH is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    address[] public acceptedTokens;
     uint256 public minA;
     uint256 public maxA;
     uint256 public minB;
@@ -21,18 +20,17 @@ contract ParticipatorNFT is Ownable, Pausable, ReentrancyGuard {
     uint256 public maxPublic;
     uint256 public pricePerToken;
     uint256 public maxAllocations;
-    uint256 public maxAllocationsOfTokensPermitted;
+    uint256 public maxAllocationsOfETH;
     uint256 public raised;
-    uint256 public raisedInTokensPermitted;
+    uint256 public raisedInETH;
     bool public isPublic;
 
     mapping(address wallet => uint256 allocation) public allocations;
-    mapping(address wallet => uint256 allocationInUSDC) public allocationsInUSDC;
+    mapping(address wallet => uint256 allocationInETH) public allocationsInETH;
     mapping(address wallet => bool isWhitelisted) public whitelistA;
     mapping(address wallet => bool isWhitelisted) public whitelistB;
 
     constructor(
-        address[] memory _acceptedTokens,
         uint256 _minA,
         uint256 _maxA,
         uint256 _minB,
@@ -42,12 +40,6 @@ contract ParticipatorNFT is Ownable, Pausable, ReentrancyGuard {
         uint256 _pricePerToken,
         uint256 _maxAllocations
     ) Ownable(msg.sender) {
-        acceptedTokens = new address[](_acceptedTokens.length);
-        for (uint256 i = 0; i < _acceptedTokens.length; i++) {
-            if (_acceptedTokens[i] == address(0)) revert IParticipator.IParticipator__Invalid("Invalid Token");
-            acceptedTokens[i] = _acceptedTokens[i];
-        }
-
         if (_maxA < _minA) revert IParticipator.IParticipator__Invalid("Max should be higher than Min");
         if (_maxB < _minB) revert IParticipator.IParticipator__Invalid("Max should be higher than Min");
         if (_maxPublic < _minPublic) revert IParticipator.IParticipator__Invalid("Max should be higher than Min");
@@ -61,73 +53,59 @@ contract ParticipatorNFT is Ownable, Pausable, ReentrancyGuard {
         maxPublic = _maxPublic;
         pricePerToken = _pricePerToken;
         maxAllocations = _maxAllocations;
-        maxAllocationsOfTokensPermitted = _maxAllocations * _pricePerToken;
+        maxAllocationsOfETH = _maxAllocations * _pricePerToken;
     }
 
-    function sendToken(address wallet, address tokenAddress, uint256 amountInTokens)
-        external
-        whenNotPaused
-        nonReentrant
-    {
+    function participate(address wallet, uint256 numOfTokens) external payable whenNotPaused nonReentrant {
         if (!whitelistA[wallet] && !whitelistB[wallet] && !isPublic) {
             revert IParticipator.IParticipator__Unauthorized("Wallet not allowed");
         }
 
-        if (tokenAddress == address(0)) revert IParticipator.IParticipator__Invalid("Invalid Token");
-
-        uint256 amount = amountInTokens / pricePerToken;
-
         if (isPublic) {
-            if (amount < minPublic) revert IParticipator.IParticipator__Invalid("Amount too low");
-            if (amount > maxPublic) revert IParticipator.IParticipator__Invalid("Amount too high");
-            if (allocations[wallet] + amount > maxPublic) {
+            if (numOfTokens < minPublic) revert IParticipator.IParticipator__Invalid("Amount too low");
+            if (numOfTokens > maxPublic) revert IParticipator.IParticipator__Invalid("Amount too high");
+            if (allocations[wallet] + numOfTokens > maxPublic) {
                 revert IParticipator.IParticipator__Invalid("Exceeds max allocation permitted");
             }
         } else if (whitelistA[wallet]) {
-            if (amount < minA) revert IParticipator.IParticipator__Invalid("Amount too low");
-            if (amount > maxA) revert IParticipator.IParticipator__Invalid("Amount too high");
-            if (allocations[wallet] + amount > maxA) {
+            if (numOfTokens < minA) revert IParticipator.IParticipator__Invalid("Amount too low");
+            if (numOfTokens > maxA) revert IParticipator.IParticipator__Invalid("Amount too high");
+            if (allocations[wallet] + numOfTokens > maxA) {
                 revert IParticipator.IParticipator__Invalid("Exceeds max allocation permitted");
             }
         } else if (whitelistB[wallet]) {
-            if (amount < minB) revert IParticipator.IParticipator__Invalid("Amount too low");
-            if (amount > maxB) revert IParticipator.IParticipator__Invalid("Amount too high");
-            if (allocations[wallet] + amount > maxB) {
+            if (numOfTokens < minB) revert IParticipator.IParticipator__Invalid("Amount too low");
+            if (numOfTokens > maxB) revert IParticipator.IParticipator__Invalid("Amount too high");
+            if (allocations[wallet] + numOfTokens > maxB) {
                 revert IParticipator.IParticipator__Invalid("Exceeds max allocation permitted");
             }
         }
 
-        if (raised + amount > maxAllocations) {
+        if (raised + numOfTokens > maxAllocations) {
             revert IParticipator.IParticipator__Invalid("Exceeds max allocations permitted");
         }
 
-        bool accepted;
+        uint256 amountInETH = numOfTokens * pricePerToken;
 
-        for (uint256 i = 0; i < acceptedTokens.length; i++) {
-            if (tokenAddress == acceptedTokens[i]) {
-                accepted = true;
-                break;
-            }
+        // Check if received ETH is sufficient
+        if (msg.value < amountInETH) revert IParticipator.IParticipator__Invalid("Insufficient ETH sent");
+
+        // Refund excess ETH if any
+        if (msg.value > amountInETH) {
+            payable(wallet).transfer(msg.value - amountInETH);
         }
 
-        if (!accepted) revert IParticipator.IParticipator__Invalid("Token not accepted");
+        allocations[wallet] += numOfTokens;
+        raised += numOfTokens;
 
-        ERC20(tokenAddress).safeTransferFrom(wallet, address(this), amountInTokens);
+        allocationsInETH[wallet] += amountInETH;
+        raisedInETH += amountInETH;
 
-        allocations[wallet] += amount;
-        raised += amount;
-
-        allocationsInUSDC[wallet] += amountInTokens;
-        raisedInTokensPermitted += amountInTokens;
-
-        emit IParticipator.Allocated(wallet, tokenAddress, amount);
+        emit IParticipator.Allocated(wallet, address(0), numOfTokens);
     }
 
     function withdraw() external onlyOwner {
-        for (uint256 i = 0; i < acceptedTokens.length; i++) {
-            uint256 balance = ERC20(acceptedTokens[i]).balanceOf(address(this));
-            ERC20(acceptedTokens[i]).safeTransfer(owner(), balance);
-        }
+        payable(owner()).transfer(address(this).balance);
     }
 
     function addBatchToWhitelist(address[] calldata wallets, uint256 whitelistIndex) external onlyOwner nonReentrant {
