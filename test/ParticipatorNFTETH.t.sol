@@ -4,17 +4,17 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console2} from "forge-std/console2.sol";
-import {ParticipatorNFT_ETH} from "../src/ParticipatorNFT_ETH.sol";
-import {DeployParticipatorNFT_ETH} from "../script/DeployParticipatorNFT_ETH.s.sol";
+import {ParticipatorNFTETH} from "../src/ParticipatorNFTETH.sol";
+import {DeployParticipatorNFTETH} from "../script/DeployParticipatorNFTETH.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 
-contract ParticipatorNFT_ETHTest is Test {
+contract ParticipatorNFTETHTest is Test {
     uint256 fork;
     string public RPC_URL;
 
-    DeployParticipatorNFT_ETH deployer;
-    ParticipatorNFT_ETH participator;
+    DeployParticipatorNFTETH deployer;
+    ParticipatorNFTETH participator;
 
     address owner;
     address bob;
@@ -43,8 +43,8 @@ contract ParticipatorNFT_ETHTest is Test {
         fork = vm.createFork(RPC_URL);
         vm.selectFork(fork);
 
-        deployer = new DeployParticipatorNFT_ETH();
-        participator = deployer.run();
+        deployer = new DeployParticipatorNFTETH();
+        participator = deployer.runForTests();
         owner = participator.owner();
         bob = vm.addr(1);
         vm.label(bob, "bob");
@@ -68,7 +68,7 @@ contract ParticipatorNFT_ETHTest is Test {
 
     function testConstructor() public {
         assertEq(participator.owner(), owner);
-        assertEq(participator.minA(), 1);
+        assertEq(participator.minA(), 2);
         assertEq(participator.maxA(), 5);
         assertEq(participator.minB(), 0);
         assertEq(participator.maxB(), 0);
@@ -109,8 +109,13 @@ contract ParticipatorNFT_ETHTest is Test {
     {
         vm.startPrank(bob);
 
-        vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
+        vm.expectRevert(
+            abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Insufficient number of tokens")
+        );
         participator.participate{value: 0}(bob, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
+        participator.participate{value: 0}(bob, 1);
 
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too high"));
         participator.participate{value: 0}(bob, maxA * 2);

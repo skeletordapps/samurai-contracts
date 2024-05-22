@@ -9,7 +9,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IParticipator} from "./interfaces/IParticipator.sol";
 
-contract ParticipatorNFT_ETH is Ownable, Pausable, ReentrancyGuard {
+contract ParticipatorNFTETH is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     uint256 public minA;
@@ -60,6 +60,8 @@ contract ParticipatorNFT_ETH is Ownable, Pausable, ReentrancyGuard {
         if (!whitelistA[wallet] && !whitelistB[wallet] && !isPublic) {
             revert IParticipator.IParticipator__Unauthorized("Wallet not allowed");
         }
+
+        if (numOfTokens == 0) revert IParticipator.IParticipator__Invalid("Insufficient number of tokens");
 
         if (isPublic) {
             if (numOfTokens < minPublic) revert IParticipator.IParticipator__Invalid("Amount too low");
