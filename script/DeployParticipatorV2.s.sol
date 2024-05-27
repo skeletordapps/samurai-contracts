@@ -12,17 +12,18 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 contract DeployParticipatorV2 is Script {
     function run() external returns (ParticipatorV2 participator) {
         address samuraiTiers = address(0);
-        address[] memory acceptedTokens;
-        uint256 totalMax = 200_000 * 1e6;
+        bool usingETH = false;
+        uint256 DECIMALS = usingETH ? 1e18 : 1e6;
+        uint256 totalMax = 200_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * 1e6, 20 * 1e6);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * 1e6, 40 * 1e6);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * 1e6, 60 * 1e6);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * 1e6, 80 * 1e6);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * 1e6, 100 * 1e6);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * 1e6, 200 * 1e6);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -32,33 +33,27 @@ contract DeployParticipatorV2 is Script {
         ranges[5] = range6;
 
         vm.startBroadcast();
-        if (block.chainid == 31337) {
-            acceptedTokens = new address[](1);
-            USDCMock usdcMock = new USDCMock("USDC Mock", "USDM");
-            acceptedTokens[0] = address(usdcMock);
-        } else {
-            acceptedTokens = new address[](1);
-            acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
-        }
-        participator = new ParticipatorV2(samuraiTiers, acceptedTokens, totalMax, ranges);
+        participator = new ParticipatorV2(samuraiTiers, totalMax, ranges, usingETH);
+        if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 
         return participator;
     }
 
     // Deploys the Samurai tiers for tests
-    function runForTests() external returns (ParticipatorV2 participator) {
-        address[] memory acceptedTokens;
-        uint256 totalMax = 200_000 * 1e6;
+    function runForTests(bool _usingETH) external returns (ParticipatorV2 participator) {
+        bool usingETH = _usingETH;
+        uint256 DECIMALS = usingETH ? 1e18 : 1e6;
+        uint256 totalMax = 200_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * 1e6, 20 * 1e6);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * 1e6, 40 * 1e6);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * 1e6, 60 * 1e6);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * 1e6, 80 * 1e6);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * 1e6, 100 * 1e6);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * 1e6, 200 * 1e6);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -71,15 +66,8 @@ contract DeployParticipatorV2 is Script {
         SamuraiTiers samuraiTiers = new SamuraiTiers();
         addInitialTiers(samuraiTiers);
 
-        if (block.chainid == 31337) {
-            acceptedTokens = new address[](1);
-            USDCMock usdcMock = new USDCMock("USDC Mock", "USDM");
-            acceptedTokens[0] = address(usdcMock);
-        } else {
-            acceptedTokens = new address[](1);
-            acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
-        }
-        participator = new ParticipatorV2(address(samuraiTiers), acceptedTokens, totalMax, ranges);
+        participator = new ParticipatorV2(address(samuraiTiers), totalMax, ranges, usingETH);
+        if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 
         return participator;
@@ -130,6 +118,20 @@ contract DeployParticipatorV2 is Script {
             Shogun.minLPStaking,
             Shogun.maxLPStaking
         );
+    }
+
+    function setTokens(ParticipatorV2 participator) public {
+        address[] memory acceptedTokens;
+        if (block.chainid == 31337) {
+            acceptedTokens = new address[](1);
+            USDCMock usdcMock = new USDCMock("USDC Mock", "USDM");
+            acceptedTokens[0] = address(usdcMock);
+        } else {
+            acceptedTokens = new address[](1);
+            acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
+        }
+
+        participator.setTokens(acceptedTokens);
     }
 
     function testMock() public {}

@@ -9,7 +9,7 @@ import {DeployParticipatorV2} from "../script/DeployParticipatorV2.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 
-contract ParticipatorV2Test is Test {
+contract ParticipatorV2TokensTest is Test {
     uint256 fork;
     string public RPC_URL;
 
@@ -37,7 +37,7 @@ contract ParticipatorV2Test is Test {
         vm.selectFork(fork);
 
         deployer = new DeployParticipatorV2();
-        participator = deployer.runForTests();
+        participator = deployer.runForTests(false);
         owner = participator.owner();
         bob = vm.addr(1);
         vm.label(bob, "bob");

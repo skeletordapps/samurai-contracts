@@ -18,6 +18,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     uint256 public maxAllocations;
     uint256 public raised;
     bool public isPublic;
+    bool public usingETH;
 
     mapping(address wallet => uint256 allocation) public allocations;
     mapping(address wallet => bool whitelisted) public whitelist;
@@ -25,21 +26,26 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
 
     constructor(
         address _samuraiTiers,
-        address[] memory _acceptedTokens,
         uint256 _maxAllocations,
-        IParticipator.WalletRange[] memory _ranges
+        IParticipator.WalletRange[] memory _ranges,
+        bool _usingETH
     ) Ownable(msg.sender) {
         samuraiTiers = _samuraiTiers;
-        acceptedTokens = new address[](_acceptedTokens.length);
-        for (uint256 i = 0; i < _acceptedTokens.length; i++) {
-            if (_acceptedTokens[i] == address(0)) revert IParticipator.IParticipator__Invalid("Invalid Token");
-            acceptedTokens[i] = _acceptedTokens[i];
-        }
-
         if (_maxAllocations == 0) revert IParticipator.IParticipator__Invalid("Total Max should be greater than 0");
 
         maxAllocations = _maxAllocations;
         setRanges(_ranges);
+        usingETH = _usingETH;
+    }
+
+    modifier whenUsingETH() {
+        require(usingETH);
+        _;
+    }
+
+    modifier whenUsingToken() {
+        require(!usingETH);
+        _;
     }
 
     modifier rangesNotEmpty() {
@@ -73,6 +79,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         whenNotPaused
         nonReentrant
         rangesNotEmpty
+        whenUsingToken
     {
         if (!whitelist[wallet] && !isPublic) revert IParticipator.IParticipator__Unauthorized("Wallet not allowed");
         if (tokenAddress == address(0)) revert IParticipator.IParticipator__Invalid("Invalid Token");
@@ -103,10 +110,42 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         ERC20(tokenAddress).safeTransferFrom(wallet, address(this), amount);
     }
 
-    function withdraw() external onlyOwner {
-        for (uint256 i = 0; i < acceptedTokens.length; i++) {
-            uint256 balance = ERC20(acceptedTokens[i]).balanceOf(address(this));
-            ERC20(acceptedTokens[i]).safeTransfer(owner(), balance);
+    function participateETH(address wallet, uint256 amount) external payable whenNotPaused whenUsingETH nonReentrant {
+        if (!whitelist[wallet] && !isPublic) revert IParticipator.IParticipator__Unauthorized("Wallet not allowed");
+        if (amount == 0) revert IParticipator.IParticipator__Unauthorized("Insufficient amount");
+        if (msg.value < amount) revert IParticipator.IParticipator__Unauthorized("Insufficient ETH");
+
+        IParticipator.WalletRange memory walletRange = isPublic ? getRangeByName("Public") : getWalletRange(wallet);
+        if (amount < walletRange.min) revert IParticipator.IParticipator__Invalid("Amount too low");
+        if (amount > walletRange.max) revert IParticipator.IParticipator__Invalid("Amount too high");
+        if (allocations[wallet] + amount > walletRange.max) {
+            revert IParticipator.IParticipator__Invalid("Exceeds max allocation permitted");
+        }
+        if (raised + amount > maxAllocations) {
+            revert IParticipator.IParticipator__Invalid("Exceeds max allocations permitted");
+        }
+
+        allocations[wallet] += amount;
+        raised += amount;
+        emit IParticipator.Allocated(wallet, address(0), amount);
+    }
+
+    function setTokens(address[] memory _acceptedTokens) external onlyOwner nonReentrant {
+        acceptedTokens = new address[](_acceptedTokens.length);
+        for (uint256 i = 0; i < _acceptedTokens.length; i++) {
+            if (_acceptedTokens[i] == address(0)) revert IParticipator.IParticipator__Invalid("Invalid Token");
+            acceptedTokens[i] = _acceptedTokens[i];
+        }
+    }
+
+    function withdraw() external onlyOwner nonReentrant {
+        if (usingETH) {
+            payable(owner()).transfer(address(this).balance); // Transfer ETH directly if usingETH is true
+        } else {
+            for (uint256 i = 0; i < acceptedTokens.length; i++) {
+                uint256 balance = ERC20(acceptedTokens[i]).balanceOf(address(this));
+                ERC20(acceptedTokens[i]).safeTransfer(owner(), balance);
+            }
         }
     }
 
@@ -173,6 +212,10 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
 
     function getWalletTier(address wallet) public view returns (ISamuraiTiers.Tier memory tier) {
         tier = ISamuraiTiers(samuraiTiers).getTier(wallet);
+    }
+
+    function acceptedTokensLength() public view returns (uint256) {
+        return acceptedTokens.length;
     }
 
     function rangesLength() public view returns (uint256) {
