@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -67,7 +67,7 @@ contract ParticipatorV2ETHTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
         );
-        participator.registerToWhitelist(bob);
+        participator.registerToWhitelist();
         vm.stopPrank();
     }
 
@@ -75,7 +75,7 @@ contract ParticipatorV2ETHTest is Test {
         vm.startPrank(walletInTiers);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Whitelisted(walletInTiers);
-        participator.registerToWhitelist(walletInTiers);
+        participator.registerToWhitelist();
         vm.stopPrank();
 
         assertEq(participator.whitelist(walletInTiers), true);
@@ -88,13 +88,13 @@ contract ParticipatorV2ETHTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Wallet not allowed")
         );
-        participator.participateETH{value: 0 ether}(bob, 0);
+        participator.participateETH{value: 0 ether}(0);
         vm.stopPrank();
     }
 
     modifier isWhitelisted(address wallet) {
         vm.startPrank(wallet);
-        participator.registerToWhitelist(wallet);
+        participator.registerToWhitelist();
         vm.stopPrank();
         _;
     }
@@ -106,10 +106,10 @@ contract ParticipatorV2ETHTest is Test {
 
         vm.startPrank(walletInTiers);
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
-        participator.participateETH{value: walletRange.min / 2}(walletInTiers, walletRange.min / 2);
+        participator.participateETH{value: walletRange.min / 2}(walletRange.min / 2);
 
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too high"));
-        participator.participateETH{value: walletRange.max * 2}(walletInTiers, walletRange.max * 2);
+        participator.participateETH{value: walletRange.max * 2}(walletRange.max * 2);
         vm.stopPrank();
     }
 
@@ -129,7 +129,7 @@ contract ParticipatorV2ETHTest is Test {
         vm.startPrank(walletInTiers);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Allocated(walletInTiers, address(0), amountToParticipate);
-        participator.participateETH{value: amountToParticipate}(walletInTiers, amountToParticipate);
+        participator.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
 
         assertEq(participator.allocations(walletInTiers), amountToParticipate);
@@ -138,7 +138,7 @@ contract ParticipatorV2ETHTest is Test {
 
     modifier participated(address wallet, uint256 amount) {
         vm.startPrank(wallet);
-        participator.participateETH{value: amount}(wallet, amount);
+        participator.participateETH{value: amount}(amount);
         vm.stopPrank();
         _;
     }
@@ -156,7 +156,7 @@ contract ParticipatorV2ETHTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Exceeds max allocation permitted")
         );
-        participator.participateETH{value: amountToParticipate}(walletInTiers, amountToParticipate);
+        participator.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
     }
 
@@ -174,16 +174,16 @@ contract ParticipatorV2ETHTest is Test {
     function testNonWhitelistedCanParticipateInPublicRound()
         external
         isPublic
-        hasBalance(bob, participator.getRangeByName("Public").max)
+        hasBalance(bob, participator.getRange(0).max)
     {
-        IParticipator.WalletRange memory publicRange = participator.getRangeByName("Public");
+        IParticipator.WalletRange memory publicRange = participator.getRange(0);
 
         uint256 amountToParticipate = publicRange.max;
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Allocated(bob, address(0), amountToParticipate);
-        participator.participateETH{value: amountToParticipate}(bob, amountToParticipate);
+        participator.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
 
         assertEq(participator.allocations(bob), amountToParticipate);

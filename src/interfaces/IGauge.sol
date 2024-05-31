@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 interface IGauge {
     function deposit(uint256 amount) external;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {ParticipatorV2} from "../src/ParticipatorV2.sol";
@@ -18,12 +18,12 @@ contract DeployParticipatorV2 is Script {
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -48,12 +48,12 @@ contract DeployParticipatorV2 is Script {
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -62,8 +62,12 @@ contract DeployParticipatorV2 is Script {
         ranges[4] = range5;
         ranges[5] = range6;
 
+        address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
+        address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
+        address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
+
         vm.startBroadcast();
-        SamuraiTiers samuraiTiers = new SamuraiTiers();
+        SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
         addInitialTiers(samuraiTiers);
 
         participator = new ParticipatorV2(address(samuraiTiers), totalMax, ranges, usingETH);

@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -8,14 +8,16 @@ import {ISamLock} from "./interfaces/ISamLock.sol";
 import {ISamuraiTiers, ISamNfts, ISamLocks, ISamGaugeLP} from "./interfaces/ISamuraiTiers.sol";
 
 contract SamuraiTiers is Ownable, ReentrancyGuard {
-    address public nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
-    address public lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
-    address public lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
+    address public nft;
+    address public lock;
+    address public lpGauge;
     uint256 public counter;
 
     mapping(uint256 index => ISamuraiTiers.Tier tier) public tiers;
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address _nft, address _lock, address _lpGauge) Ownable(msg.sender) {
+        setSources(_nft, _lock, _lpGauge);
+    }
 
     /**
      * @notice Creates a new tier with the specified parameters.
@@ -83,6 +85,24 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Sets the contract addresses for NFT, lock, and LP gauge sources.
+     * @dev Emits a SourcesUpdated event with the new addresses.
+     *       This function can only be called by the contract owner and is protected against reentrancy.
+     *       It reverts if any of the provided addresses are invalid (zero address).
+     * @param _nft The address of the Sam NFT contract.
+     * @param _lock The address of the Sam Lock contract.
+     * @param _lpGauge The address of the Sam/WETH LP gauge contract.
+     */
+    function setSources(address _nft, address _lock, address _lpGauge) public onlyOwner nonReentrant {
+        require(_nft != address(0) && _lock != address(0) && _lpGauge != address(0), "Invalid address");
+        nft = _nft;
+        lock = _lock;
+        lpGauge = _lpGauge;
+
+        emit ISamuraiTiers.SourcesUpdated(_nft, _lock, _lpGauge);
+    }
+
+    /**
      * @notice Gets the tier a wallet belongs to based on Sam NFT holdings, lockups, and LP staking.
      * @param wallet: Address of the wallet to check.
      * @return tier: The tier information for the wallet.
@@ -111,13 +131,12 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
                 (totalLocked >= tier.minLocking && totalLocked <= tier.maxLocking)
                     || (lpStaked >= tier.minLPStaking && lpStaked <= tier.maxLPStaking)
             ) {
-                console2.log(tier.name);
                 return tier;
             }
         }
 
-        // If no tier matches, return the default tier (optional)
-        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0); // Replace with your default tier values
+        // If no tier matches, return a blank tier
+        return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0);
     }
 
     /**

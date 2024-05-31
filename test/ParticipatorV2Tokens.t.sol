@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -68,7 +68,7 @@ contract ParticipatorV2TokensTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
         );
-        participator.registerToWhitelist(bob);
+        participator.registerToWhitelist();
         vm.stopPrank();
     }
 
@@ -76,7 +76,7 @@ contract ParticipatorV2TokensTest is Test {
         vm.startPrank(walletInTiers);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Whitelisted(walletInTiers);
-        participator.registerToWhitelist(walletInTiers);
+        participator.registerToWhitelist();
         vm.stopPrank();
 
         assertEq(participator.whitelist(walletInTiers), true);
@@ -89,13 +89,13 @@ contract ParticipatorV2TokensTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Wallet not allowed")
         );
-        participator.participate(bob, acceptedToken, 0);
+        participator.participate(acceptedToken, 0);
         vm.stopPrank();
     }
 
     modifier isWhitelisted(address wallet) {
         vm.startPrank(wallet);
-        participator.registerToWhitelist(wallet);
+        participator.registerToWhitelist();
         vm.stopPrank();
         _;
     }
@@ -103,7 +103,7 @@ contract ParticipatorV2TokensTest is Test {
     function testRevertParticipationWithZeroAddress() external isWhitelisted(walletInTiers) {
         vm.startPrank(walletInTiers);
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Invalid Token"));
-        participator.participate(walletInTiers, address(0), 0);
+        participator.participate(address(0), 0);
         vm.stopPrank();
     }
 
@@ -112,10 +112,10 @@ contract ParticipatorV2TokensTest is Test {
 
         vm.startPrank(walletInTiers);
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
-        participator.participate(walletInTiers, acceptedToken, walletRange.min / 2);
+        participator.participate(acceptedToken, walletRange.min / 2);
 
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too high"));
-        participator.participate(walletInTiers, acceptedToken, walletRange.max * 2);
+        participator.participate(acceptedToken, walletRange.max * 2);
         vm.stopPrank();
     }
 
@@ -142,7 +142,7 @@ contract ParticipatorV2TokensTest is Test {
         ERC20(acceptedToken).approve(address(participator), amountToParticipate);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Allocated(walletInTiers, acceptedToken, amountToParticipate);
-        participator.participate(walletInTiers, acceptedToken, amountToParticipate);
+        participator.participate(acceptedToken, amountToParticipate);
         vm.stopPrank();
 
         assertEq(participator.allocations(walletInTiers), amountToParticipate);
@@ -152,7 +152,7 @@ contract ParticipatorV2TokensTest is Test {
     modifier participated(address wallet, address token, uint256 amount) {
         vm.startPrank(wallet);
         ERC20(token).approve(address(participator), amount);
-        participator.participate(wallet, token, amount);
+        participator.participate(token, amount);
         vm.stopPrank();
         _;
     }
@@ -170,7 +170,7 @@ contract ParticipatorV2TokensTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Exceeds max allocation permitted")
         );
-        participator.participate(walletInTiers, acceptedToken, amountToParticipate);
+        participator.participate(acceptedToken, amountToParticipate);
         vm.stopPrank();
     }
 
@@ -188,9 +188,9 @@ contract ParticipatorV2TokensTest is Test {
     function testNonWhitelistedCanParticipateInPublicRound()
         external
         isPublic
-        hasBalance(bob, acceptedToken, participator.getRangeByName("Public").max)
+        hasBalance(bob, acceptedToken, participator.getRange(0).max)
     {
-        IParticipator.WalletRange memory publicRange = participator.getRangeByName("Public");
+        IParticipator.WalletRange memory publicRange = participator.getRange(0);
 
         uint256 amountToParticipate = publicRange.max;
 
@@ -198,7 +198,7 @@ contract ParticipatorV2TokensTest is Test {
         ERC20(acceptedToken).approve(address(participator), amountToParticipate);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Allocated(bob, acceptedToken, amountToParticipate);
-        participator.participate(bob, acceptedToken, amountToParticipate);
+        participator.participate(acceptedToken, amountToParticipate);
         vm.stopPrank();
 
         assertEq(participator.allocations(bob), amountToParticipate);

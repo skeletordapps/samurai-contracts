@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
@@ -119,6 +119,29 @@ contract SamuraiTiersTest is Test {
         assertEq(maxStaking, 199_000);
         assertEq(minLPStaking, 450);
         assertEq(maxLPStaking, 900);
+    }
+
+    function testCanUpdateSources() external {
+        address nft = samuraiTiers.nft();
+        address lock = samuraiTiers.lock();
+        address lpGauge = samuraiTiers.lpGauge();
+
+        vm.startPrank(owner);
+
+        vm.expectRevert("Invalid address");
+        samuraiTiers.setSources(address(0), lock, lpGauge);
+
+        vm.expectRevert("Invalid address");
+        samuraiTiers.setSources(nft, address(0), lpGauge);
+
+        vm.expectRevert("Invalid address");
+        samuraiTiers.setSources(nft, lock, address(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit ISamuraiTiers.SourcesUpdated(nft, lock, lpGauge);
+        samuraiTiers.setSources(nft, lock, lpGauge);
+
+        vm.stopPrank();
     }
 
     modifier setTiers() {

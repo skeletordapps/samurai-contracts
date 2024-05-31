@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {LPStaking} from "../src/LPStaking.sol";

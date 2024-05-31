@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {ISamLock} from "./ISamLock.sol";
 
@@ -42,6 +42,7 @@ interface ISamuraiTiers {
     event Added(uint256 index);
     event Removed(Tier tier);
     event Updated(uint256 index);
+    event SourcesUpdated(address nft, address lock, address lpGauge);
 
     function counter() external view returns (uint256);
     function tiers(uint256 index) external view returns (Tier memory);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
@@ -8,10 +8,13 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 contract DeploySamuraiTiers is Script {
     function run() external returns (SamuraiTiers samuraiTiers) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
+        address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
+        address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
 
         vm.startBroadcast(privateKey);
 
-        samuraiTiers = new SamuraiTiers();
+        samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
         addInitialTiers(samuraiTiers);
 
         vm.stopBroadcast();
@@ -21,9 +24,12 @@ contract DeploySamuraiTiers is Script {
 
     function runForTests() external returns (SamuraiTiers samuraiTiers) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
+        address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
+        address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
 
         vm.startBroadcast(privateKey);
-        samuraiTiers = new SamuraiTiers();
+        samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
         vm.stopBroadcast();
 
         return samuraiTiers;
