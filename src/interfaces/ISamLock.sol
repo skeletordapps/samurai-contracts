@@ -11,7 +11,7 @@ interface ISamLock {
         uint256 lockedAt;
         uint256 unlockTime;
         uint256 lockPeriod;
-        uint256 multiplier;
+        // uint256 multiplier;
     }
 
     event Locked(address indexed wallet, uint256 amount, uint256 lockIndex);
@@ -24,4 +24,5 @@ interface ISamLock {
     error SamLock__InvalidLockIndex();
     error SamLock__Cannot_Unlock_Before_Period();
     error SamLock__InvalidMultiplier();
+    error SamLock__InvalidAddress();
 }
