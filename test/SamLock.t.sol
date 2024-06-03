@@ -124,7 +124,7 @@ contract SamLockTest is Test {
     function testRevertWithdrawWithZeroAmount() external {
         vm.startPrank(bob);
         vm.expectRevert(ISamLock.SamLock__InsufficientAmount.selector);
-        lock.withdraw(bob, 0, 0);
+        lock.withdraw(0, 0);
         vm.stopPrank();
     }
 
@@ -135,7 +135,7 @@ contract SamLockTest is Test {
 
         vm.startPrank(bob);
         vm.expectRevert(ISamLock.SamLock__InsufficientAmount.selector);
-        lock.withdraw(bob, lockings[0].lockedAmount * 2, 0);
+        lock.withdraw(lockings[0].lockedAmount * 2, 0);
         vm.stopPrank();
     }
 
@@ -146,7 +146,7 @@ contract SamLockTest is Test {
 
         vm.startPrank(mary);
         vm.expectRevert(ISamLock.SamLock__Cannot_Unlock_Before_Period.selector);
-        lock.withdraw(mary, lockings[0].lockedAmount, 0);
+        lock.withdraw(lockings[0].lockedAmount, 0);
         vm.stopPrank();
     }
 
@@ -167,7 +167,7 @@ contract SamLockTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit ISamLock.Withdrawn(bob, lockedAmount, 0);
-        lock.withdraw(bob, lockedAmount, 0);
+        lock.withdraw(lockedAmount, 0);
 
         vm.stopPrank();
 
@@ -205,7 +205,7 @@ contract SamLockTest is Test {
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
         emit ISamLock.Withdrawn(bob, amount, 0);
-        lock.withdraw(bob, amount, 0);
+        lock.withdraw(amount, 0);
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
@@ -241,7 +241,7 @@ contract SamLockTest is Test {
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
         emit ISamLock.Withdrawn(bob, amount, 0);
-        lock.withdraw(bob, amount, 0);
+        lock.withdraw(amount, 0);
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
@@ -277,7 +277,7 @@ contract SamLockTest is Test {
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
         emit ISamLock.Withdrawn(bob, amount, 0);
-        lock.withdraw(bob, amount, 0);
+        lock.withdraw(amount, 0);
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
@@ -312,7 +312,7 @@ contract SamLockTest is Test {
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
         emit ISamLock.Withdrawn(bob, amount, 0);
-        lock.withdraw(bob, amount, 0);
+        lock.withdraw(amount, 0);
         vm.stopPrank();
 
         ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);

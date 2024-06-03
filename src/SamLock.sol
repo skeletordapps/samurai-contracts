@@ -70,21 +70,20 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @notice Withdraw locked SAM tokens and earned points after the lock period ends
-    /// @param wallet Address of the user who is withdrawing
     /// @param amount Amount of SAM tokens to withdraw (must be less than or equal to locked amount)
     /// @param lockIndex Index of the specific lock information entry for the user
-    function withdraw(address wallet, uint256 amount, uint256 lockIndex) external nonReentrant {
+    function withdraw(uint256 amount, uint256 lockIndex) external nonReentrant {
         if (amount == 0) revert ISamLock.SamLock__InsufficientAmount();
 
-        ISamLock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
+        ISamLock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex]; // SLK-01C: Inefficient mapping Lookups - OK
         if (block.timestamp < lockInfo.unlockTime) revert ISamLock.SamLock__Cannot_Unlock_Before_Period();
         if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ISamLock.SamLock__InsufficientAmount();
 
-        lockings[wallet][lockIndex].withdrawnAmount += amount;
+        lockInfo.withdrawnAmount += amount;
         totalLocked -= amount;
-        emit ISamLock.Withdrawn(wallet, amount, lockIndex);
+        emit ISamLock.Withdrawn(msg.sender, amount, lockIndex);
 
-        ERC20(sam).safeTransfer(wallet, amount);
+        ERC20(sam).safeTransfer(msg.sender, amount);
     }
 
     /// @notice Pause the contract, preventing further locking actions
