@@ -150,8 +150,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             return points;
         }
 
-        uint256 elapsedTime =
-            block.timestamp > lockInfo.unlockTime ? lockInfo.unlockTime : block.timestamp - lockInfo.lockedAt;
+        uint256 elapsedTime = block.timestamp - lockInfo.lockedAt;
 
         if (elapsedTime > 0) {
             UD60x18 oneDay = ud(86_400e18);
