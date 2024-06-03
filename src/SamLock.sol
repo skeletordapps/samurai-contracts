@@ -40,17 +40,16 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @notice Lock SAM tokens to earn points based on lock tier and period
-    /// @param wallet Address of the user who is locking
     /// @param amount Amount of SAM tokens to be locked
     /// @param lockPeriod Lock period chosen by the user (THREE_MONTHS, SIX_MONTHS, NINE_MONTHS, TWELVE_MONTHS)
-    function lock(address wallet, uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
+    function lock(uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
         if (amount < minToLock) revert ISamLock.SamLock__InsufficientAmount();
         if (
             lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
                 && lockPeriod != TWELVE_MONTHS
         ) revert ISamLock.SamLock__Invalid_Period();
 
-        ERC20(sam).safeTransferFrom(wallet, address(this), amount);
+        ERC20(sam).safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 lockIndex = nextLockIndex;
 
@@ -63,10 +62,10 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             lockPeriod: lockPeriod
         });
 
-        lockings[wallet].push(newLock);
+        lockings[msg.sender].push(newLock);
         totalLocked += amount;
         nextLockIndex++;
-        emit ISamLock.Locked(wallet, amount, lockIndex);
+        emit ISamLock.Locked(msg.sender, amount, lockIndex);
     }
 
     /// @notice Withdraw locked SAM tokens and earned points after the lock period ends
