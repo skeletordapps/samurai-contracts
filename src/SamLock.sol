@@ -28,6 +28,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     mapping(uint256 period => uint256 multiplier) public multipliers;
 
     constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
+        if (_sam == address(0)) revert ISamLock.SamLock__InvalidAddress();
         sam = _sam;
 
         multipliers[THREE_MONTHS] = 1e18;

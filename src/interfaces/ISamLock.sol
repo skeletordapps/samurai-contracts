@@ -24,4 +24,5 @@ interface ISamLock {
     error SamLock__InvalidLockIndex();
     error SamLock__Cannot_Unlock_Before_Period();
     error SamLock__InvalidMultiplier();
+    error SamLock__InvalidAddress();
 }
