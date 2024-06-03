@@ -383,8 +383,9 @@ contract SamLockTest is Test {
 
         lock.lock(bob, newMinAmount, lock.THREE_MONTHS());
         vm.stopPrank();
+        uint256 multiplier = lock.multipliers(latestLocks[0].lockPeriod);
 
-        assertEq(points, ud(latestLocks[0].lockedAmount).mul(ud(latestLocks[0].multiplier)).intoUint256());
+        assertEq(points, ud(latestLocks[0].lockedAmount).mul(ud(multiplier)).intoUint256());
     }
 
     function testRevertPointsByLockWithWrongIndex() external locked(bob, 30_000 ether) {

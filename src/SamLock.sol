@@ -60,8 +60,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             withdrawnAmount: 0,
             lockedAt: block.timestamp,
             unlockTime: block.timestamp + lockPeriod,
-            lockPeriod: lockPeriod,
-            multiplier: multipliers[lockPeriod]
+            lockPeriod: lockPeriod
         });
 
         lockings[wallet].push(newLock);
@@ -136,7 +135,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
         ISamLock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
 
-        UD60x18 multiplier = ud(lockInfo.multiplier);
+        UD60x18 multiplier = ud(multipliers[lockInfo.lockPeriod]);
         UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier);
 
         if (block.timestamp >= lockInfo.unlockTime) {

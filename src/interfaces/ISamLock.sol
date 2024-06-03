@@ -11,7 +11,6 @@ interface ISamLock {
         uint256 lockedAt;
         uint256 unlockTime;
         uint256 lockPeriod;
-        uint256 multiplier;
     }
 
     event Locked(address indexed wallet, uint256 amount, uint256 lockIndex);
