@@ -28,6 +28,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     mapping(uint256 period => uint256 multiplier) public multipliers;
 
     constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
+        // SLK-02S: Inexistent Sanitization of Input Address - OK
+        // Added a check to validate the sam address
         if (_sam == address(0)) revert ISamLock.SamLock__InvalidAddress();
         sam = _sam;
 
@@ -43,6 +45,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     /// @param amount Amount of SAM tokens to be locked
     /// @param lockPeriod Lock period chosen by the user (THREE_MONTHS, SIX_MONTHS, NINE_MONTHS, TWELVE_MONTHS)
     function lock(uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
+        // SLK-04M: Unauthorized Transfer of Funds - OK
+
         if (amount < minToLock) revert ISamLock.SamLock__InsufficientAmount();
         if (
             lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
@@ -72,9 +76,12 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     /// @param amount Amount of SAM tokens to withdraw (must be less than or equal to locked amount)
     /// @param lockIndex Index of the specific lock information entry for the user
     function withdraw(uint256 amount, uint256 lockIndex) external nonReentrant {
+        // SLK-03M: Unauthorized Release of Locks - OK
+        // The wallet param was removed and the msg.sender is being used to avoid transfer of funds
+
         if (amount == 0) revert ISamLock.SamLock__InsufficientAmount();
 
-        ISamLock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex];
+        ISamLock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex]; // SLK-01C: Inefficient mapping Lookups - OK
         if (block.timestamp < lockInfo.unlockTime) revert ISamLock.SamLock__Cannot_Unlock_Before_Period();
         if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ISamLock.SamLock__InsufficientAmount();
 
@@ -103,6 +110,9 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         external
         onlyOwner
     {
+        // SLK-02M: Insufficient Validation of Multipliers - OK
+        // The new multipliers must be higher than before to keep consistency, improving also the validation as recommended
+
         if (
             multiplier3x <= multipliers[THREE_MONTHS] || multiplier6x <= multipliers[SIX_MONTHS]
                 || multiplier9x <= multipliers[NINE_MONTHS] || multiplier12x <= multipliers[TWELVE_MONTHS]
@@ -136,6 +146,9 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
         ISamLock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
 
+        // SLK-01M: Inexistent Retroactive Application of Multipliers - OK
+        // The multiplier is now loading the latest multiplier based in lockPeriod selected by the user
+        // enabling fair leverage of multipliers updates for old lockers
         UD60x18 multiplier = ud(multipliers[lockInfo.lockPeriod]);
         UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier);
 
@@ -144,9 +157,13 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             return points;
         }
 
+        // SLK-02C: Redundant Conditional - OK
+        // The useless condition was removed as recommended
         uint256 elapsedTime = block.timestamp - lockInfo.lockedAt;
 
         if (elapsedTime > 0) {
+            // SLK-01S: Illegible Numeric Value Representation - OK
+            // The number was separated by _ as recommended
             UD60x18 oneDay = ud(86_400e18);
             UD60x18 periodInDays = convert(lockInfo.lockPeriod).div(oneDay);
             UD60x18 pointsPerDay = maxPointsToEarn.div(periodInDays);
