@@ -101,11 +101,20 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         minToLock = _minToLock;
     }
 
+    /// @notice This function updates the multipliers used to calculate lockup rewards for different lockup durations (3, 6, 9, and 12 months).
+    /// @param multiplier3x The new multiplier for the 3-month lockup.
+    /// @param multiplier6x The new multiplier for the 6-month lockup.
+    /// @param multiplier9x The new multiplier for the 9-month lockup.
+    /// @param multiplier12x The new multiplier for the 12-month lockup.
+    /// @dev This function can only be called by the contract owner. It reverts if any of the new multipliers are less than to the corresponding stored multiplier.
     function updateMultipliers(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x)
         external
         onlyOwner
     {
-        if (multiplier3x == 0 || multiplier6x == 0 || multiplier9x == 0 || multiplier12x == 0) {
+        if (
+            multiplier3x < multipliers[THREE_MONTHS] || multiplier6x < multipliers[SIX_MONTHS]
+                || multiplier9x < multipliers[NINE_MONTHS] || multiplier12x < multipliers[TWELVE_MONTHS]
+        ) {
             revert ISamLock.SamLock__InvalidMultiplier();
         }
 
