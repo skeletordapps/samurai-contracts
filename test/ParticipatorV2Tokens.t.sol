@@ -69,7 +69,7 @@ contract ParticipatorV2TokensTest is Test {
             vm.expectRevert(
                 abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
             );
-            participator.registerWithLinkedWallet(vm.addr(10));
+            participator.registerWithLinkedWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
         } else {
             vm.expectRevert(
                 abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
@@ -81,10 +81,9 @@ contract ParticipatorV2TokensTest is Test {
 
     function testCanRegisterToWhitelist() external {
         vm.startPrank(walletInTiers);
-        vm.expectEmit(true, true, true, true);
-        emit IParticipator.Whitelisted(walletInTiers);
+
         if (participator.usingLinkedWallet()) {
-            participator.registerWithLinkedWallet(vm.addr(10));
+            participator.registerWithLinkedWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
         } else {
             participator.registerToWhitelist();
         }
@@ -107,7 +106,11 @@ contract ParticipatorV2TokensTest is Test {
     modifier isWhitelisted(address wallet) {
         vm.startPrank(wallet);
         if (participator.usingLinkedWallet()) {
-            participator.registerWithLinkedWallet(vm.addr(10));
+            string memory linkedWallet = "67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK";
+            vm.expectEmit(true, true, true, true);
+            emit IParticipator.WhitelistedWithLinkedWallet(wallet, linkedWallet);
+            participator.registerWithLinkedWallet(linkedWallet);
+            assertEq(participator.linkedWallets(wallet), linkedWallet);
         } else {
             participator.registerToWhitelist();
         }

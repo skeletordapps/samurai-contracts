@@ -15,7 +15,7 @@ contract DeployParticipatorV2 is Script {
         bool usingETH = false;
         bool usingLinkedWallet = true;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 150_000 * DECIMALS;
+        uint256 totalMax = 100_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
@@ -46,7 +46,7 @@ contract DeployParticipatorV2 is Script {
         bool usingETH = _usingETH;
         bool usingLinkedWallet = _usingLinkedWallet;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 150_000 * DECIMALS;
+        uint256 totalMax = 100_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 

@@ -22,7 +22,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
 
     mapping(address wallet => uint256 allocation) public allocations;
     mapping(address wallet => bool whitelisted) public whitelist;
-    mapping(address wallet => address linkedWallet) public linkedWallets;
+    mapping(address wallet => string linkedWallet) public linkedWallets;
     IParticipator.WalletRange[] public ranges;
 
     /**
@@ -68,9 +68,9 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev Restricts registration to whitelisted wallets or during public participation.
-    modifier canRegister(address wallet, address linkedWallet) {
+    modifier canRegister(address wallet, string memory linkedWallet) {
         if (usingLinkedWallet) {
-            require(linkedWallet != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
+            require(bytes(linkedWallet).length > 0, IParticipator.IParticipator__Invalid("Invalid address"));
         }
 
         ISamuraiTiers.Tier memory walletTier = getWalletTier(wallet);
@@ -89,13 +89,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
      *       and only if the wallet is not already whitelisted.
      * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
      */
-    function registerToWhitelist()
-        external
-        whenNotPaused
-        nonReentrant
-        rangesNotEmpty
-        canRegister(msg.sender, address(0))
-    {
+    function registerToWhitelist() external whenNotPaused nonReentrant rangesNotEmpty canRegister(msg.sender, "") {
         whitelist[msg.sender] = true;
 
         emit IParticipator.Whitelisted(msg.sender);
@@ -109,7 +103,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
      * @param linkedWallet The wallet from other network to be linked
      * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
      */
-    function registerWithLinkedWallet(address linkedWallet)
+    function registerWithLinkedWallet(string memory linkedWallet)
         external
         whenNotPaused
         nonReentrant
@@ -119,7 +113,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         whitelist[msg.sender] = true;
         linkedWallets[msg.sender] = linkedWallet;
 
-        emit IParticipator.Whitelisted(msg.sender);
+        emit IParticipator.WhitelistedWithLinkedWallet(msg.sender, linkedWallet);
     }
 
     /**
