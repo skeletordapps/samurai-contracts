@@ -165,7 +165,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         );
         require(whitelist[msg.sender] || isPublic, IIDO.IIDO__Unauthorized("Wallet not allowed"));
         require(tokenAddress != address(0), IIDO.IIDO__Invalid("Invalid Token"));
-        IIDO.WalletRange memory walletRange = isPublic ? getRange(0) : getWalletRange(msg.sender);
+        IIDO.WalletRange memory walletRange = getWalletRange(msg.sender);
         require(amount >= walletRange.min, IIDO.IIDO__Invalid("Amount too low"));
         require(amount <= walletRange.max, IIDO.IIDO__Invalid("Amount too high"));
         require(
@@ -212,7 +212,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         require(amount > 0, IIDO.IIDO__Unauthorized("Insufficient amount"));
         require(msg.value == amount, IIDO.IIDO__Unauthorized("Insufficient ETH"));
 
-        IIDO.WalletRange memory walletRange = isPublic ? getRange(0) : getWalletRange(msg.sender);
+        IIDO.WalletRange memory walletRange = getWalletRange(msg.sender);
         require(amount >= walletRange.min, IIDO.IIDO__Invalid("Amount too low"));
         require(amount <= walletRange.max, IIDO.IIDO__Invalid("Amount too high"));
         require(
@@ -306,7 +306,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
 
     function setPeriods(IIDO.Periods memory _periods, IIDO.Phase[] memory _phases) public onlyOwner nonReentrant {
         require(_phases.length > 0, "Cannot be blank");
-        
 
         // if (!isForVesting) {
         //     require(_periods.registrationStartsAt > 0, IIDO.IIDO__Invalid("registrationStartsAt cannot be zero"));
@@ -340,9 +339,15 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      */
     function getWalletRange(address wallet) public view returns (IIDO.WalletRange memory walletRange) {
         ISamuraiTiers.Tier memory tier = getWalletTier(wallet);
-        require(bytes(tier.name).length > 0, IIDO.IIDO__Invalid("Tier not found"));
-
         IIDO.WalletRange[] memory _ranges = ranges;
+
+        if (keccak256(abi.encodePacked(tier.name)) == keccak256(abi.encodePacked(""))) {
+            walletRange.name = _ranges[0].name;
+            walletRange.min = _ranges[0].min;
+            walletRange.max = _ranges[0].max;
+
+            return walletRange;
+        }
 
         for (uint256 i = 0; i < _ranges.length; i++) {
             if (keccak256(abi.encodePacked(_ranges[i].name)) == keccak256(abi.encodePacked(tier.name))) {

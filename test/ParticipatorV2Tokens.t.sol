@@ -37,7 +37,7 @@ contract ParticipatorV2TokensTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployParticipatorV2();
-        participator = deployer.runForTests(false);
+        participator = deployer.runForTests(false, true);
         owner = participator.owner();
         bob = vm.addr(1);
         vm.label(bob, "bob");
@@ -65,10 +65,17 @@ contract ParticipatorV2TokensTest is Test {
 
     function testRevertRegisterToWhitelist() external {
         vm.startPrank(bob);
-        vm.expectRevert(
-            abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
-        );
-        participator.registerToWhitelist();
+        if (participator.usingLinkedWallet()) {
+            vm.expectRevert(
+                abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
+            );
+            participator.registerWithLinkedWallet(vm.addr(10));
+        } else {
+            vm.expectRevert(
+                abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
+            );
+            participator.registerToWhitelist();
+        }
         vm.stopPrank();
     }
 
@@ -76,7 +83,11 @@ contract ParticipatorV2TokensTest is Test {
         vm.startPrank(walletInTiers);
         vm.expectEmit(true, true, true, true);
         emit IParticipator.Whitelisted(walletInTiers);
-        participator.registerToWhitelist();
+        if (participator.usingLinkedWallet()) {
+            participator.registerWithLinkedWallet(vm.addr(10));
+        } else {
+            participator.registerToWhitelist();
+        }
         vm.stopPrank();
 
         assertEq(participator.whitelist(walletInTiers), true);
@@ -95,7 +106,11 @@ contract ParticipatorV2TokensTest is Test {
 
     modifier isWhitelisted(address wallet) {
         vm.startPrank(wallet);
-        participator.registerToWhitelist();
+        if (participator.usingLinkedWallet()) {
+            participator.registerWithLinkedWallet(vm.addr(10));
+        } else {
+            participator.registerToWhitelist();
+        }
         vm.stopPrank();
         _;
     }
@@ -157,6 +172,17 @@ contract ParticipatorV2TokensTest is Test {
         _;
     }
 
+    modifier isPublic() {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IParticipator.PublicAllowed();
+        participator.makePublic();
+        vm.stopPrank();
+
+        assertTrue(participator.isPublic());
+        _;
+    }
+
     function testRevertParticipationWhenExceedsLimit()
         external
         isWhitelisted(walletInTiers)
@@ -174,15 +200,31 @@ contract ParticipatorV2TokensTest is Test {
         vm.stopPrank();
     }
 
-    modifier isPublic() {
+    function testWhitelistedCanTopUpWhenIsPublic()
+        external
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
+    {
+        assertEq(participator.allocations(walletInTiers), participator.getWalletRange(walletInTiers).max);
+
+        IParticipator.WalletRange memory range = participator.getRange(0);
+        uint256 amountToTopUp = range.max - participator.allocations(walletInTiers);
+
         vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IParticipator.PublicAllowed();
         participator.makePublic();
         vm.stopPrank();
 
-        assertTrue(participator.isPublic());
-        _;
+        vm.startPrank(randomUSDCHolder);
+        ERC20(acceptedToken).transfer(walletInTiers, amountToTopUp);
+        vm.stopPrank();
+
+        vm.startPrank(walletInTiers);
+        ERC20(acceptedToken).approve(address(participator), amountToTopUp);
+        participator.participate(acceptedToken, amountToTopUp);
+        vm.stopPrank();
+
+        assertEq(participator.allocations(walletInTiers), range.max);
     }
 
     function testNonWhitelistedCanParticipateInPublicRound()
@@ -190,9 +232,8 @@ contract ParticipatorV2TokensTest is Test {
         isPublic
         hasBalance(bob, acceptedToken, participator.getRange(0).max)
     {
-        IParticipator.WalletRange memory publicRange = participator.getRange(0);
-
-        uint256 amountToParticipate = publicRange.max;
+        IParticipator.WalletRange memory walletRange = participator.getWalletRange(bob);
+        uint256 amountToParticipate = walletRange.max;
 
         vm.startPrank(bob);
         ERC20(acceptedToken).approve(address(participator), amountToParticipate);

@@ -37,7 +37,7 @@ contract ParticipatorV2ETHTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployParticipatorV2();
-        participator = deployer.runForTests(true);
+        participator = deployer.runForTests(true, false);
         owner = participator.owner();
         bob = vm.addr(1);
         vm.label(bob, "bob");

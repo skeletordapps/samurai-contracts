@@ -11,19 +11,20 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 
 contract DeployParticipatorV2 is Script {
     function run() external returns (ParticipatorV2 participator) {
-        address samuraiTiers = address(0);
+        address samuraiTiers = 0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74;
         bool usingETH = false;
+        bool usingLinkedWallet = true;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 200_000 * DECIMALS;
+        uint256 totalMax = 150_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 100 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 400 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 100 * DECIMALS, 800 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 100 * DECIMALS, 1_500 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -33,7 +34,7 @@ contract DeployParticipatorV2 is Script {
         ranges[5] = range6;
 
         vm.startBroadcast();
-        participator = new ParticipatorV2(samuraiTiers, totalMax, ranges, usingETH);
+        participator = new ParticipatorV2(samuraiTiers, totalMax, ranges, usingETH, usingLinkedWallet);
         if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 
@@ -41,19 +42,20 @@ contract DeployParticipatorV2 is Script {
     }
 
     // Deploys the Samurai tiers for tests
-    function runForTests(bool _usingETH) external returns (ParticipatorV2 participator) {
+    function runForTests(bool _usingETH, bool _usingLinkedWallet) external returns (ParticipatorV2 participator) {
         bool usingETH = _usingETH;
+        bool usingLinkedWallet = _usingLinkedWallet;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 200_000 * DECIMALS;
+        uint256 totalMax = 150_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 10 * DECIMALS, 200 * DECIMALS);
-        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 10 * DECIMALS, 20 * DECIMALS);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 30 * DECIMALS, 40 * DECIMALS);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 50 * DECIMALS, 60 * DECIMALS);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 70 * DECIMALS, 80 * DECIMALS);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 90 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
+        IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 100 * DECIMALS, 100 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 400 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 100 * DECIMALS, 800 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 100 * DECIMALS, 1_500 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;
@@ -70,7 +72,7 @@ contract DeployParticipatorV2 is Script {
         SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
         addInitialTiers(samuraiTiers);
 
-        participator = new ParticipatorV2(address(samuraiTiers), totalMax, ranges, usingETH);
+        participator = new ParticipatorV2(address(samuraiTiers), totalMax, ranges, usingETH, usingLinkedWallet);
         if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 

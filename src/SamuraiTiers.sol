@@ -152,6 +152,7 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
             if (nameHash == tierNameHash) return tiers[i];
         }
 
+        // If no tier matches, return a blank tier
         return ISamuraiTiers.Tier("", 0, 0, 0, 0, 0);
     }
 }

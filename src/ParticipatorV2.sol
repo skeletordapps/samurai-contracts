@@ -18,9 +18,11 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     uint256 public raised;
     bool public isPublic;
     bool public usingETH;
+    bool public usingLinkedWallet;
 
     mapping(address wallet => uint256 allocation) public allocations;
     mapping(address wallet => bool whitelisted) public whitelist;
+    mapping(address wallet => address linkedWallet) public linkedWallets;
     IParticipator.WalletRange[] public ranges;
 
     /**
@@ -34,14 +36,17 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         address _samuraiTiers,
         uint256 _maxAllocations,
         IParticipator.WalletRange[] memory _ranges,
-        bool _usingETH
+        bool _usingETH,
+        bool _usingLinkedWallet
     ) Ownable(msg.sender) {
-        samuraiTiers = _samuraiTiers;
+        require(_samuraiTiers != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
         require(_maxAllocations > 0, IParticipator.IParticipator__Invalid("Total Max should be greater than 0"));
 
+        samuraiTiers = _samuraiTiers;
         maxAllocations = _maxAllocations;
         setRanges(_ranges);
         usingETH = _usingETH;
+        usingLinkedWallet = _usingLinkedWallet;
     }
 
     /// @dev Enforces that the contract is configured for ETH participation.
@@ -63,7 +68,11 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @dev Restricts registration to whitelisted wallets or during public participation.
-    modifier canRegister(address wallet) {
+    modifier canRegister(address wallet, address linkedWallet) {
+        if (usingLinkedWallet) {
+            require(linkedWallet != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
+        }
+
         ISamuraiTiers.Tier memory walletTier = getWalletTier(wallet);
 
         require(
@@ -80,8 +89,35 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
      *       and only if the wallet is not already whitelisted.
      * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
      */
-    function registerToWhitelist() external whenNotPaused nonReentrant rangesNotEmpty canRegister(msg.sender) {
+    function registerToWhitelist()
+        external
+        whenNotPaused
+        nonReentrant
+        rangesNotEmpty
+        canRegister(msg.sender, address(0))
+    {
         whitelist[msg.sender] = true;
+
+        emit IParticipator.Whitelisted(msg.sender);
+    }
+
+    /**
+     * @notice Registers a wallet for the whitelist using a external network wallet to be linked.
+     * @dev Can only be called by a non-paused contract, while not in a reentrant call,
+     *       by a wallet with a valid tier in SamuraiTiers (not empty tier name),
+     *       and only if the wallet is not already whitelisted.
+     * @param linkedWallet The wallet from other network to be linked
+     * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
+     */
+    function registerWithLinkedWallet(address linkedWallet)
+        external
+        whenNotPaused
+        nonReentrant
+        rangesNotEmpty
+        canRegister(msg.sender, linkedWallet)
+    {
+        whitelist[msg.sender] = true;
+        linkedWallets[msg.sender] = linkedWallet;
 
         emit IParticipator.Whitelisted(msg.sender);
     }
@@ -107,7 +143,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     {
         require(whitelist[msg.sender] || isPublic, IParticipator.IParticipator__Unauthorized("Wallet not allowed"));
         require(tokenAddress != address(0), IParticipator.IParticipator__Invalid("Invalid Token"));
-        IParticipator.WalletRange memory walletRange = isPublic ? getRange(0) : getWalletRange(msg.sender);
+        IParticipator.WalletRange memory walletRange = getWalletRange(msg.sender);
         require(amount >= walletRange.min, IParticipator.IParticipator__Invalid("Amount too low"));
         require(amount <= walletRange.max, IParticipator.IParticipator__Invalid("Amount too high"));
         require(
@@ -153,7 +189,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         require(amount > 0, IParticipator.IParticipator__Unauthorized("Insufficient amount"));
         require(msg.value == amount, IParticipator.IParticipator__Unauthorized("Insufficient ETH"));
 
-        IParticipator.WalletRange memory walletRange = isPublic ? getRange(0) : getWalletRange(msg.sender);
+        IParticipator.WalletRange memory walletRange = getWalletRange(msg.sender);
         require(amount >= walletRange.min, IParticipator.IParticipator__Invalid("Amount too low"));
         require(amount <= walletRange.max, IParticipator.IParticipator__Invalid("Amount too high"));
         require(
@@ -251,15 +287,21 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Retrieves the participation range applicable to a specific wallet based on their tier.
      * @dev This function is view-only and retrieves the range information from the `SamuraiTiers` contract
-     *       using the provided wallet address. It reverts if the tier information for the wallet is not found.
+     *       using the provided wallet address. If tier.name is empty string, returns the public wallet range.
      * @param wallet The address of the wallet to get the participation range for.
      * @return walletRange A struct containing details about the participation range for the provided wallet.
      */
     function getWalletRange(address wallet) public view returns (IParticipator.WalletRange memory walletRange) {
         ISamuraiTiers.Tier memory tier = getWalletTier(wallet);
-        require(bytes(tier.name).length > 0, IParticipator.IParticipator__Invalid("Tier not found"));
-
         IParticipator.WalletRange[] memory _ranges = ranges;
+
+        if (isPublic || keccak256(abi.encodePacked(tier.name)) == keccak256(abi.encodePacked(""))) {
+            walletRange.name = _ranges[0].name;
+            walletRange.min = _ranges[0].min;
+            walletRange.max = _ranges[0].max;
+
+            return walletRange;
+        }
 
         for (uint256 i = 0; i < _ranges.length; i++) {
             if (keccak256(abi.encodePacked(_ranges[i].name)) == keccak256(abi.encodePacked(tier.name))) {
