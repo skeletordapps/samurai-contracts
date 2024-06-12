@@ -189,6 +189,30 @@ contract ParticipatorV2ETHTest is Test {
         assertEq(participator.allocations(bob), amountToParticipate);
     }
 
+    function testWhitelistedCanTopUpWhenIsPublic()
+        external
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, participator.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, participator.getWalletRange(walletInTiers).max)
+    {
+        assertEq(participator.allocations(walletInTiers), participator.getWalletRange(walletInTiers).max);
+
+        IParticipator.WalletRange memory range = participator.getRange(0);
+        uint256 amountToTopUp = range.max - participator.allocations(walletInTiers);
+
+        vm.startPrank(owner);
+        participator.makePublic();
+        vm.stopPrank();
+
+        vm.deal(walletInTiers, amountToTopUp);
+
+        vm.startPrank(walletInTiers);
+        participator.participateETH{value: amountToTopUp}(amountToTopUp);
+        vm.stopPrank();
+
+        assertEq(participator.allocations(walletInTiers), range.max);
+    }
+
     function testCanSetNewRanges() external {
         uint256 numberOfRanges = participator.rangesLength();
 
