@@ -337,6 +337,28 @@ contract SamLockTest is Test {
         vm.stopPrank();
     }
 
+    function testRevertWhenMultipliersAreNotInAscendingManner() external {
+        uint256 three = lock.THREE_MONTHS();
+        uint256 six = lock.SIX_MONTHS();
+        uint256 nine = lock.NINE_MONTHS();
+        uint256 twelve = lock.TWELVE_MONTHS();
+        uint256 multiplier1 = lock.multipliers(three) + 10e18;
+        uint256 multiplier2 = lock.multipliers(six) + 20e18;
+        uint256 multiplier3 = lock.multipliers(nine) + 30e18;
+        uint256 multiplier4 = lock.multipliers(twelve) + 40e18;
+
+        vm.startPrank(owner);
+        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        lock.updateMultipliers(multiplier2, multiplier1, multiplier3, multiplier4);
+
+        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        lock.updateMultipliers(multiplier1, multiplier3, multiplier2, multiplier4);
+
+        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        lock.updateMultipliers(multiplier1, multiplier2, multiplier4, multiplier3);
+        vm.stopPrank();
+    }
+
     function testCanUpdateMultipliers() external {
         uint256 expectedMultiplier1 = 10e18;
         uint256 expectedMultiplier2 = 20e18;
@@ -358,10 +380,14 @@ contract SamLockTest is Test {
     }
 
     modifier multipliersUpdated() {
-        uint256 expectedMultiplier1 = 10e18;
-        uint256 expectedMultiplier2 = 20e18;
-        uint256 expectedMultiplier3 = 30e18;
-        uint256 expectedMultiplier4 = 40e18;
+        uint256 three = lock.THREE_MONTHS();
+        uint256 six = lock.SIX_MONTHS();
+        uint256 nine = lock.NINE_MONTHS();
+        uint256 twelve = lock.TWELVE_MONTHS();
+        uint256 expectedMultiplier1 = lock.multipliers(three) + 10e18;
+        uint256 expectedMultiplier2 = lock.multipliers(six) + 20e18;
+        uint256 expectedMultiplier3 = lock.multipliers(nine) + 30e18;
+        uint256 expectedMultiplier4 = lock.multipliers(twelve) + 40e18;
 
         vm.startPrank(owner);
         lock.updateMultipliers(expectedMultiplier1, expectedMultiplier2, expectedMultiplier3, expectedMultiplier4);

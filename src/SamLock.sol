@@ -116,6 +116,10 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             revert ISamLock.SamLock__InvalidMultiplier();
         }
 
+        if (multiplier3x >= multiplier6x || multiplier6x >= multiplier9x || multiplier9x >= multiplier12x) {
+            revert ISamLock.SamLock__InvalidMultiplier();
+        }
+
         multipliers[THREE_MONTHS] = multiplier3x;
         multipliers[SIX_MONTHS] = multiplier6x;
         multipliers[NINE_MONTHS] = multiplier9x;
