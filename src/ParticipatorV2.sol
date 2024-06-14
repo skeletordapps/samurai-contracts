@@ -67,19 +67,35 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         _;
     }
 
-    /// @dev Restricts registration to whitelisted wallets or during public participation.
-    modifier canRegister(address wallet, string memory linkedWallet) {
+    modifier linkedWalletChecked() {
         if (usingLinkedWallet) {
-            require(bytes(linkedWallet).length > 0, IParticipator.IParticipator__Invalid("Invalid address"));
+            require(
+                bytes(linkedWallets[msg.sender]).length > 0,
+                IParticipator.IParticipator__Unauthorized("Linked wallet not found")
+            );
         }
+        _;
+    }
 
-        ISamuraiTiers.Tier memory walletTier = getWalletTier(wallet);
+    /// @dev Restricts registration to whitelisted wallets or during public participation.
+    modifier canRegister() {
+        ISamuraiTiers.Tier memory walletTier = getWalletTier(msg.sender);
 
         require(
             bytes(walletTier.name).length > 0, IParticipator.IParticipator__Unauthorized("Not allowed to whitelist")
         );
 
         _;
+    }
+
+    function linkWallet(string memory linkedWallet) external whenNotPaused nonReentrant {
+        if (usingLinkedWallet) {
+            require(bytes(linkedWallet).length > 0, IParticipator.IParticipator__Invalid("Invalid address"));
+        } else {
+            revert IParticipator.IParticipator__Unauthorized("Not using linked wallets");
+        }
+
+        linkedWallets[msg.sender] = linkedWallet;
     }
 
     /**
@@ -89,31 +105,10 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
      *       and only if the wallet is not already whitelisted.
      * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
      */
-    function registerToWhitelist() external whenNotPaused nonReentrant rangesNotEmpty canRegister(msg.sender, "") {
+    function registerToWhitelist() external whenNotPaused nonReentrant rangesNotEmpty canRegister linkedWalletChecked {
         whitelist[msg.sender] = true;
 
         emit IParticipator.Whitelisted(msg.sender);
-    }
-
-    /**
-     * @notice Registers a wallet for the whitelist using a external network wallet to be linked.
-     * @dev Can only be called by a non-paused contract, while not in a reentrant call,
-     *       by a wallet with a valid tier in SamuraiTiers (not empty tier name),
-     *       and only if the wallet is not already whitelisted.
-     * @param linkedWallet The wallet from other network to be linked
-     * emit Whitelisted(wallet) Emitted when a wallet is successfully whitelisted.
-     */
-    function registerWithLinkedWallet(string memory linkedWallet)
-        external
-        whenNotPaused
-        nonReentrant
-        rangesNotEmpty
-        canRegister(msg.sender, linkedWallet)
-    {
-        whitelist[msg.sender] = true;
-        linkedWallets[msg.sender] = linkedWallet;
-
-        emit IParticipator.WhitelistedWithLinkedWallet(msg.sender, linkedWallet);
     }
 
     /**
@@ -134,6 +129,7 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
         nonReentrant
         rangesNotEmpty
         whenUsingToken
+        linkedWalletChecked
     {
         require(whitelist[msg.sender] || isPublic, IParticipator.IParticipator__Unauthorized("Wallet not allowed"));
         require(tokenAddress != address(0), IParticipator.IParticipator__Invalid("Invalid Token"));
@@ -178,7 +174,14 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
      * @param amount The amount of ETH to participate with (in wei).
      * emit Allocated(msg.sender, address(0), amount) Emitted when a user successfully participates with ETH.
      */
-    function participateETH(uint256 amount) external payable whenNotPaused whenUsingETH nonReentrant {
+    function participateETH(uint256 amount)
+        external
+        payable
+        whenNotPaused
+        whenUsingETH
+        linkedWalletChecked
+        nonReentrant
+    {
         require(whitelist[msg.sender] || isPublic, IParticipator.IParticipator__Unauthorized("Wallet not allowed"));
         require(amount > 0, IParticipator.IParticipator__Unauthorized("Insufficient amount"));
         require(msg.value == amount, IParticipator.IParticipator__Unauthorized("Insufficient ETH"));

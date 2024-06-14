@@ -7,7 +7,7 @@ interface IParticipator {
 
     event Allocated(address indexed wallet, address token, uint256 amount);
     event Whitelisted(address[] addresses);
-    event WhitelistedWithLinkedWallet(address indexed wallet, string linkedWallet);
+    event WalletLinked(address indexed wallet, string linkedWallet);
 
     event Whitelisted(address indexed wallet);
     event PublicAllowed();

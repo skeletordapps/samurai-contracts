@@ -61,32 +61,46 @@ contract ParticipatorV2TokensTest is Test {
         assertTrue(participator.rangesLength() == 6);
     }
 
-    // REGISTERING TO WHITELIST
+    // LINK WALLET
 
-    function testRevertRegisterToWhitelist() external {
+    function testRevertLinkingWalletWithBlankString() external {
         vm.startPrank(bob);
-        if (participator.usingLinkedWallet()) {
-            vm.expectRevert(
-                abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
-            );
-            participator.registerWithLinkedWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
-        } else {
-            vm.expectRevert(
-                abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
-            );
-            participator.registerToWhitelist();
-        }
+        vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Invalid address"));
+        participator.linkWallet("");
         vm.stopPrank();
     }
 
-    function testCanRegisterToWhitelist() external {
-        vm.startPrank(walletInTiers);
+    function testCanLinkWallet() external {
+        string memory walletToLink = "67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK";
+        vm.startPrank(bob);
+        participator.linkWallet(walletToLink);
+        vm.stopPrank();
 
-        if (participator.usingLinkedWallet()) {
-            participator.registerWithLinkedWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
-        } else {
-            participator.registerToWhitelist();
-        }
+        assertEq(participator.linkedWallets(bob), walletToLink);
+    }
+
+    modifier walletLinked(address wallet) {
+        vm.startPrank(wallet);
+        participator.linkWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
+        vm.stopPrank();
+        _;
+    }
+
+    // REGISTERING TO WHITELIST
+
+    function testRevertRegisterToWhitelist() external walletLinked(bob) {
+        vm.startPrank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not allowed to whitelist")
+        );
+        participator.registerToWhitelist();
+
+        vm.stopPrank();
+    }
+
+    function testCanRegisterToWhitelist() external walletLinked(walletInTiers) {
+        vm.startPrank(walletInTiers);
+        participator.registerToWhitelist();
         vm.stopPrank();
 
         assertEq(participator.whitelist(walletInTiers), true);
@@ -94,7 +108,7 @@ contract ParticipatorV2TokensTest is Test {
 
     // PARTICIPATING
 
-    function testRevertParticipationWhenNotWhitelisted() external {
+    function testRevertParticipationWhenNotWhitelisted() external walletLinked(bob) {
         vm.startPrank(bob);
         vm.expectRevert(
             abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Wallet not allowed")
@@ -105,27 +119,27 @@ contract ParticipatorV2TokensTest is Test {
 
     modifier isWhitelisted(address wallet) {
         vm.startPrank(wallet);
-        if (participator.usingLinkedWallet()) {
-            string memory linkedWallet = "67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK";
-            vm.expectEmit(true, true, true, true);
-            emit IParticipator.WhitelistedWithLinkedWallet(wallet, linkedWallet);
-            participator.registerWithLinkedWallet(linkedWallet);
-            assertEq(participator.linkedWallets(wallet), linkedWallet);
-        } else {
-            participator.registerToWhitelist();
-        }
+        participator.registerToWhitelist();
         vm.stopPrank();
         _;
     }
 
-    function testRevertParticipationWithZeroAddress() external isWhitelisted(walletInTiers) {
+    function testRevertParticipationWithZeroAddress()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+    {
         vm.startPrank(walletInTiers);
         vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Invalid Token"));
         participator.participate(address(0), 0);
         vm.stopPrank();
     }
 
-    function testRevertParticipationNonPermittedAmounts() external isWhitelisted(walletInTiers) {
+    function testRevertParticipationNonPermittedAmounts()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+    {
         IParticipator.WalletRange memory walletRange = participator.getWalletRange(walletInTiers);
 
         vm.startPrank(walletInTiers);
@@ -150,6 +164,7 @@ contract ParticipatorV2TokensTest is Test {
 
     function testCanParticipate()
         external
+        walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
     {
@@ -188,6 +203,7 @@ contract ParticipatorV2TokensTest is Test {
 
     function testRevertParticipationWhenExceedsLimit()
         external
+        walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
         participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
@@ -205,6 +221,7 @@ contract ParticipatorV2TokensTest is Test {
 
     function testWhitelistedCanTopUpWhenIsPublic()
         external
+        walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
         participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
@@ -230,8 +247,26 @@ contract ParticipatorV2TokensTest is Test {
         assertEq(participator.allocations(walletInTiers), range.max);
     }
 
+    function testRevertNonWhitelistedsInPublicRoundWithoutLinkedWallet()
+        external
+        isPublic
+        hasBalance(bob, acceptedToken, participator.getRange(0).max)
+    {
+        IParticipator.WalletRange memory walletRange = participator.getWalletRange(bob);
+        uint256 amountToParticipate = walletRange.max;
+
+        vm.startPrank(bob);
+        ERC20(acceptedToken).approve(address(participator), amountToParticipate);
+        vm.expectRevert(
+            abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Linked wallet not found")
+        );
+        participator.participate(acceptedToken, amountToParticipate);
+        vm.stopPrank();
+    }
+
     function testNonWhitelistedCanParticipateInPublicRound()
         external
+        walletLinked(bob)
         isPublic
         hasBalance(bob, acceptedToken, participator.getRange(0).max)
     {
@@ -285,6 +320,7 @@ contract ParticipatorV2TokensTest is Test {
 
     function testCanWithdrawRaisedAmount()
         external
+        walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
         participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)

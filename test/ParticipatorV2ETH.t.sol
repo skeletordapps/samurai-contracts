@@ -60,6 +60,16 @@ contract ParticipatorV2ETHTest is Test {
         assertTrue(participator.rangesLength() == 6);
     }
 
+    // LINK WALLET
+    function testRevertLinkingWalletWhenNotUsingIt() external {
+        vm.startPrank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Not using linked wallets")
+        );
+        participator.linkWallet("67aL4e2LBSbPeC9aLuw4y8tqTqKwuHDEhmRPTmYHKytK");
+        vm.stopPrank();
+    }
+
     // REGISTERING TO WHITELIST
 
     function testRevertRegisterToWhitelist() external {
