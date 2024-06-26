@@ -2,14 +2,45 @@
 pragma solidity 0.8.26;
 
 interface IIDO {
+    /// Errors
+
     error IIDO__Unauthorized(string message);
     error IIDO__Invalid(string message);
 
-    event Allocated(address indexed wallet, address token, uint256 amount);
-    event Whitelisted(address[] addresses);
-    event Whitelisted(address indexed wallet);
+    /// Events
+
+    event TokensSet(address[] acceptedTokens);
+    event AmountsSet(Amounts amounts);
+    event RangesSet(WalletRange[] ranges);
+    event PeriodsSet(Periods periods);
+    event WalletLinked(address indexed wallet, string linkedWallet);
+    event Registered(address indexed wallet);
+    event Participated(address indexed wallet, address token, uint256 amount);
     event PublicAllowed();
+    event IDOTokensFilled(address indexed wallet, uint256 amount);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
+    event TGEClaimed(address indexed wallet, uint256 amountInTokens);
+    event Claimed(address indexed wallet, uint256 claimedAmount);
+    event ParticipationsWithdrawal(uint256 amount);
+    event RemainingTokensWithdrawal(uint256 amount);
+
+    /// Enums
+
+    enum VestingType {
+        LinearVesting,
+        CliffVesting
+    }
+
+    enum ReleaseSchedule {
+        None,
+        Minute,
+        Day,
+        Week,
+        Month,
+        Year
+    }
+
+    /// Structs
 
     struct WalletRange {
         string name;
@@ -18,99 +49,17 @@ interface IIDO {
     }
 
     struct Periods {
-        uint256 registrationStartsAt;
-        uint256 registrationEndsAt;
+        uint256 registrationAt;
         uint256 participationStartsAt;
         uint256 participationEndsAt;
-        uint256 vestingStartsAt;
-        uint256 releaseStartsAt;
-        uint256 releaseEndsAt;
+        uint256 vestingAt;
+        uint256 cliff;
+        ReleaseSchedule releaseSchedule;
     }
 
-    //-----------------------------------------
-
-    // Phase Errors
-    error IDO__Not_In_Registration_Phase(string message);
-    error IDO__Not_In_Participation_Phase(string message);
-    error IDO__Not_In_Vesting_Phase(string message);
-    error IDO__Not_In_Release_Phase(string message);
-
-    // Input Validation Errors
-    error IDO__Cannot_Be_Zero(string message);
-    error IDO__Max_Per_Wallet_Must_Be_Greater_Than_Min_Per_Wallet(string message);
-
-    // Participation Errors
-    error IDO__Insufficient_Amount_To_Participate(string message);
-    error IDO__Exceeds_Max_Amount_Permitted(string message);
-    error IDO__Not_Registered(string message);
-    error IDO__SamNFT_Not_Found(string message);
-    error IDO__Cannot_Update_After_Participation_Started(string message);
-    error IDO__Cannot_Update_With_Zero(string message);
-    error IDO__Max_Value_Cannot_Be_Less_Than_Min_Value(string message);
-    error IDO__Invalid_Address(string message);
-    error IDO__Insufficient_Balance(string message);
-    error IDO__Cannot_Claim_Participations_Before_End_Period(string message);
-    error IDO__Invalid_Message_Signature(string message);
-    error IDO__Already_Participating(string message);
-
-    // Wallet Errors
-    error IDO__Wallet_Registered(string message);
-    error IDO__Wallet_Blacklisted(string message);
-
-    // Timing Errors
-    error IDO__Time_Too_Close_To_Now(string message);
-
-    // Update Errors
-    error IDO__Cannot_Update_In_Vesting_Phase(string message);
-    error IDO__Wrong_Release_Type(string message);
-    error IDO__Wrong_Claim_Period_Type(string message);
-    error IDO__Cannot_Update_In_Release_Phase(string message);
-
-    // Token Claim Errors
-    error IDO__Already_Claimed_TGE(string message);
-    error IDO__No_Tokens_Available(string message);
-    error IDO__Not_Allowed(string message);
-    error IDO__Out_Claim_Period(string message);
-
-    // Enums
-
-    enum ReleaseType {
-        Minute,
-        Day,
-        Week,
-        Month,
-        Year,
-        Invalid
+    struct Amounts {
+        uint256 tokenPrice;
+        uint256 maxAllocations;
+        uint256 tgeReleasePercent;
     }
-
-    enum ClaimPeriodType {
-        Day,
-        Week,
-        Month,
-        ThreeMonths,
-        Year,
-        Invalid
-    }
-
-    enum Phase {
-        Registration,
-        Participation,
-        Vesting,
-        Release
-    }
-
-    // Events
-
-    event Registered(address indexed wallet, uint256 timestamp);
-    event Participating(address indexed wallet, uint256 amount, uint256 timestamp, bool registered);
-    event Claimed(address indexed wallet, uint256 claimedAmount);
-    event PublicAllowed(uint256 timestamp);
-    event TGEClaimed(address indexed wallet, uint256 amountInTokens);
-    event RegistrationSet(uint256 timestamp);
-    event ParticipationSet(uint256 timestamp);
-    event VestingSet(uint256 timestamp);
-    event ReleaseSet(uint256 timestamp);
-    event ParticipationsWithdrawal(uint256 amount);
-    event RemainingTokensWithdrawal(uint256 amount);
-    event IDOConfigUpdated(string field, bytes value);
 }
