@@ -10,7 +10,7 @@ import {console} from "forge-std/console.sol";
 import {ILPStaking} from "./interfaces/ILPStaking.sol";
 import {IGauge} from "./interfaces/IGauge.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;

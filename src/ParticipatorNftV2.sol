@@ -8,7 +8,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IParticipator} from "./interfaces/IParticipator.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract ParticipatorNftV2 is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;

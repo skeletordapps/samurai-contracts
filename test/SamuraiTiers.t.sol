@@ -2,7 +2,7 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {DeploySamuraiTiers} from "../script/DeploySamuraiTiers.s.sol";
 import {ISamuraiTiers, MockSamNfts, MockSamLocks, MockSamGaugeLP} from "../src/interfaces/ISamuraiTiers.sol";
@@ -280,6 +280,6 @@ contract SamuraiTiersTest is Test {
         ISamuraiTiers.Tier memory user1Tier = samuraiTiers.getTier(user1);
         vm.stopPrank();
 
-        console2.log("tier", user1Tier.name);
+        console.log("tier", user1Tier.name);
     }
 }

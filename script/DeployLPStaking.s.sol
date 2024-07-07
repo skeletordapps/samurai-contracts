@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {LPStaking} from "../src/LPStaking.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeployLPStaking is Script {
     function run(bool isFork)

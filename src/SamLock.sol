@@ -6,7 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {ISamLock} from "./interfaces/ISamLock.sol";
 

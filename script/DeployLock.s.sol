@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SamMock} from "../src/mocks/SamMock.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeployLock is Script {
     function run() external returns (SamLock lock, address sam) {

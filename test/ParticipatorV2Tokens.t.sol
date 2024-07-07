@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {ParticipatorV2} from "../src/ParticipatorV2.sol";
 import {DeployParticipatorV2} from "../script/DeployParticipatorV2.s.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";

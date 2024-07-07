@@ -8,7 +8,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {IIDOFull} from "./interfaces/IIDOFull.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract IDOFull is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;

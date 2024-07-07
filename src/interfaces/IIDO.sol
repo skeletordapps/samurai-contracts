@@ -22,6 +22,7 @@ interface IIDO {
     event TGEClaimed(address indexed wallet, uint256 amountInTokens);
     event Claimed(address indexed wallet, uint256 claimedAmount);
     event ParticipationsWithdrawal(uint256 amount);
+    event IDOTokenSet(address indexed token);
     event RemainingTokensWithdrawal(uint256 amount);
 
     /// Enums

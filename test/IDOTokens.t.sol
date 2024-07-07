@@ -3,11 +3,12 @@ pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {IDO} from "../src/IDO.sol";
 import {DeployIDO} from "../script/DeployIDO.s.sol";
-import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IIDO} from "../src/interfaces/IIDO.sol";
+import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 
 contract IDOTokensTest is Test {
     uint256 fork;
@@ -61,6 +62,10 @@ contract IDOTokensTest is Test {
         acceptedToken = ido.acceptedTokens(0);
 
         (tokenPrice, maxAllocations, tgeReleasePercent) = ido.amounts();
+        uint256 numberOfRanges = ido.rangesLength();
+        for (uint256 i = 0; i < numberOfRanges; i++) {
+            ranges.push(ido.getRange(i));
+        }
         (registrationAt, participationStartsAt, participationEndsAt, vestingAt, cliff, releaseSchedule) = ido.periods();
     }
 
@@ -73,30 +78,30 @@ contract IDOTokensTest is Test {
         assertTrue(ido.rangesLength() == 6);
         assertEq(tokenPrice, 0.013e6);
         assertEq(maxAllocations, 50_000e6);
-        assertEq(tgeReleasePercent, 8);
+        assertEq(tgeReleasePercent, 0.08e18);
         assertEq(registrationAt, rightNow);
         assertEq(participationStartsAt, rightNow + 1 days);
         assertEq(participationEndsAt, rightNow + 2 days);
-        assertEq(vestingAt, rightNow + 10 days);
-        assertEq(cliff, 30 days);
+        assertEq(vestingAt, 0);
+        assertEq(cliff, 0);
 
-        IIDO.WalletRange memory range1 = IIDO.WalletRange("Public", 100e6, 5_000e6);
-        IIDO.WalletRange memory range2 = IIDO.WalletRange("Ronin", 100e6, 100e6);
-        IIDO.WalletRange memory range3 = IIDO.WalletRange("Gokenin", 100e6, 200e6);
-        IIDO.WalletRange memory range4 = IIDO.WalletRange("Goshi", 100e6, 400e6);
-        IIDO.WalletRange memory range5 = IIDO.WalletRange("Hatamoto", 100e6, 800e6);
-        IIDO.WalletRange memory range6 = IIDO.WalletRange("Shogun", 100e6, 1_500e6);
+        IIDO.WalletRange[] memory expectedRanges = new IIDO.WalletRange[](6);
+        expectedRanges[0] = IIDO.WalletRange("Public", 100e6, 5_000e6);
+        expectedRanges[1] = IIDO.WalletRange("Ronin", 100e6, 100e6);
+        expectedRanges[2] = IIDO.WalletRange("Gokenin", 100e6, 200e6);
+        expectedRanges[3] = IIDO.WalletRange("Goshi", 100e6, 400e6);
+        expectedRanges[4] = IIDO.WalletRange("Hatamoto", 100e6, 800e6);
+        expectedRanges[5] = IIDO.WalletRange("Shogun", 100e6, 1_500e6);
 
         uint256 totalOfRanges = ido.rangesLength();
 
         for (uint256 i = 0; i < totalOfRanges; i++) {
             IIDO.WalletRange memory range = ido.getRange(i);
-
             ranges.push(range);
 
-            assertEq(range.name, ranges[i].name);
-            assertEq(range.min, ranges[i].min);
-            assertEq(range.max, ranges[i].max);
+            assertEq(range.name, expectedRanges[i].name);
+            assertEq(range.min, expectedRanges[i].min);
+            assertEq(range.max, expectedRanges[i].max);
         }
     }
 
@@ -143,6 +148,13 @@ contract IDOTokensTest is Test {
         assertEq(ido.whitelist(walletInTiers), true);
     }
 
+    modifier isWhitelisted(address wallet) {
+        vm.startPrank(wallet);
+        ido.register();
+        vm.stopPrank();
+        _;
+    }
+
     // PARTICIPATING
 
     function testRevertParticipationWhenNotRegistered() external walletLinked(bob) inParticipationPeriod {
@@ -150,13 +162,6 @@ contract IDOTokensTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet not allowed"));
         ido.participate(acceptedToken, 0);
         vm.stopPrank();
-    }
-
-    modifier isWhitelisted(address wallet) {
-        vm.startPrank(wallet);
-        ido.register();
-        vm.stopPrank();
-        _;
     }
 
     function testRevertParticipationWithZeroAddress()
@@ -326,6 +331,65 @@ contract IDOTokensTest is Test {
         assertEq(ido.allocations(bob), amountToParticipate);
     }
 
+    /// AMOUNTS
+
+    function testRevertSetAmountsWithLowerTokenPrice() external {
+        IIDO.Amounts memory newAmounts =
+            IIDO.Amounts({tokenPrice: 0, maxAllocations: maxAllocations, tgeReleasePercent: tgeReleasePercent});
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Cannot update with a lower tokenPrice"));
+        ido.setAmounts(newAmounts);
+        vm.stopPrank();
+    }
+
+    function testRevertSetAmountsWithLowerMaxAllocations() external {
+        IIDO.Amounts memory newAmounts =
+            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: 20_000, tgeReleasePercent: tgeReleasePercent});
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Cannot update with a lower maxAllocations")
+        );
+        ido.setAmounts(newAmounts);
+        vm.stopPrank();
+    }
+
+    function testRevertSetAmountsWithLowerTGEReleasePercent() external {
+        IIDO.Amounts memory newAmounts =
+            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: maxAllocations, tgeReleasePercent: 2});
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Cannot update with a lower tgeReleasePercent")
+        );
+        ido.setAmounts(newAmounts);
+        vm.stopPrank();
+    }
+
+    function testCanSetNewAmounts() external {
+        IIDO.Amounts memory newSameAmounts =
+            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: maxAllocations, tgeReleasePercent: tgeReleasePercent});
+
+        IIDO.Amounts memory newDoubledAmounts = IIDO.Amounts({
+            tokenPrice: tokenPrice * 2,
+            maxAllocations: maxAllocations * 2,
+            tgeReleasePercent: tgeReleasePercent * 2
+        });
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IIDO.AmountsSet(newSameAmounts);
+        ido.setAmounts(newSameAmounts);
+
+        vm.expectEmit(true, true, true, true);
+        emit IIDO.AmountsSet(newDoubledAmounts);
+        ido.setAmounts(newDoubledAmounts);
+        vm.stopPrank();
+    }
+
+    /// RANGES
+
     function testCanSetNewRanges() external {
         uint256 numberOfRanges = ido.rangesLength();
 
@@ -358,6 +422,233 @@ contract IDOTokensTest is Test {
         }
     }
 
+    /// PERIODS
+
+    function testSetPeriodsRevertWhenRegistrationIsUnderCurrentTimestamp() external {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: 0,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: vestingAt,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "New registrationStartsAt cannot be under current stored value"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    function testSetPeriodsRevertWhenParticipationStartsIsUnderRegistrationEndsAt() external {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: 0,
+            participationEndsAt: participationEndsAt,
+            vestingAt: vestingAt,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "participationStartsAt should be higher than registrationEndsAt"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    function testSetPeriodsRevertWhenParticipationEndsAtIsUnderParticipationStartsAt() external {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: 0,
+            vestingAt: vestingAt,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "participationEndsAt should be higher than participationStartsAt"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    function testCanSetPeriods() external {
+        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,) = ido.periods();
+
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: _registrationAt,
+            participationStartsAt: _participationStartsAt,
+            participationEndsAt: _participationEndsAt,
+            vestingAt: _participationEndsAt + 10 days,
+            cliff: 30 days,
+            releaseSchedule: IIDO.ReleaseSchedule.Minute
+        });
+
+        vm.startPrank(owner);
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+
+        (
+            uint256 _newRegistrationAt,
+            uint256 _newParticipationStartsAt,
+            uint256 _newParticipationEndsAt,
+            uint256 _newVestingAt,
+            uint256 _newCliff,
+            IIDO.ReleaseSchedule _newReleaseSchedule
+        ) = ido.periods();
+
+        assertEq(_newRegistrationAt, expectedPeriods.registrationAt);
+        assertEq(_newParticipationStartsAt, expectedPeriods.participationStartsAt);
+        assertEq(_newParticipationEndsAt, expectedPeriods.participationEndsAt);
+        assertEq(_newVestingAt, expectedPeriods.vestingAt);
+        assertEq(_newCliff, expectedPeriods.cliff);
+        assertEq(uint256(_newReleaseSchedule), uint256(expectedPeriods.releaseSchedule));
+    }
+
+    modifier periodsSet(uint256 newVestingAt, uint256 cliffDuration, IIDO.ReleaseSchedule newReleaseSchedule) {
+        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,) = ido.periods();
+
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: _registrationAt,
+            participationStartsAt: _participationStartsAt,
+            participationEndsAt: _participationEndsAt,
+            vestingAt: newVestingAt,
+            cliff: cliffDuration,
+            releaseSchedule: newReleaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IIDO.PeriodsSet(expectedPeriods);
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+
+        (registrationAt, participationStartsAt, participationEndsAt, vestingAt, cliff, releaseSchedule) = ido.periods();
+
+        _;
+    }
+
+    /// When vestingAt is not set
+    function testRevertSetPeriodsWhenNewVestingIsUnderParticipationEnd() external {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: participationEndsAt - 2 hours,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "New vestingAt value must be greater or equal participationEndsAt"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    /// When vestingAt is already set
+    function testRevertSetPeriodsWhenStoredVestingAtIsSetAndNewValueIsUnderParticipationEnd()
+        external
+        periodsSet(participationEndsAt + 1 days, 0, releaseSchedule)
+    {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: participationEndsAt - 2 hours,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "New vestingAt must be greater or equal than participationEndsAt"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    /// When vestingAt is already set
+    function testRevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
+        external
+        periodsSet(participationEndsAt + 2 days, 0, releaseSchedule)
+    {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: participationEndsAt + 1 days,
+            cliff: cliff,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IIDO.IIDO__Invalid.selector, "New vestingAt value must be greater or equal current vestingAt value"
+            )
+        );
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    function testRevertSetPeriodsWhenCliffIsUnderStoredCliff()
+        external
+        periodsSet(participationEndsAt + 2 days, 10 days, releaseSchedule)
+    {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: vestingAt,
+            cliff: 0,
+            releaseSchedule: releaseSchedule
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Invalid cliff"));
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    function testRevertSetPeriodsWhenReleaseScheduleIsInvalid()
+        external
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+    {
+        IIDO.Periods memory expectedPeriods = IIDO.Periods({
+            registrationAt: registrationAt,
+            participationStartsAt: participationStartsAt,
+            participationEndsAt: participationEndsAt,
+            vestingAt: vestingAt,
+            cliff: cliff,
+            releaseSchedule: IIDO.ReleaseSchedule.None
+        });
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Release schedule cannot be None"));
+        ido.setPeriods(expectedPeriods);
+        vm.stopPrank();
+    }
+
+    // WITHDRAW RAISED
+
     function testCanWithdrawRaisedAmount()
         external
         walletLinked(walletInTiers)
@@ -378,5 +669,334 @@ contract IDOTokensTest is Test {
 
         assertEq(tokenBalanceAfter, 0);
         assertEq(tokenOwnerBalanceAfter, tokenOwnerBalanceBefore + tokenBalanceBefore);
+    }
+
+    // SET IDO TOKEN
+
+    function testCanSetIDOToken() external {
+        vm.warp(participationEndsAt + 2 hours);
+
+        ERC20Mock newToken = new ERC20Mock("IDO TOKEN", "IDT");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IIDO.IDOTokenSet(address(newToken));
+        ido.setIDOToken(address(newToken));
+        vm.stopPrank();
+
+        assertEq(ido.token(), address(newToken));
+    }
+
+    modifier idoTokenSet() {
+        vm.warp(participationEndsAt + 2 hours);
+        ERC20Mock newToken = new ERC20Mock("IDO TOKEN", "IDT");
+        vm.startPrank(owner);
+        ido.setIDOToken(address(newToken));
+        vm.stopPrank();
+        _;
+    }
+
+    function testRevertSetIDOTokenIfAlreadySet() external idoTokenSet {
+        ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Token already set"));
+        ido.setIDOToken(address(newToken));
+        vm.stopPrank();
+    }
+
+    /// IDO TOKEN FILL
+
+    function testRevertFillIDOTokenWhenTokenNotSet()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+    {
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "IDO token not set"));
+        ido.fillIDOToken(1 ether);
+        vm.stopPrank();
+    }
+
+    function testRevertFillIDOTokenWhenWithoutParticipations() external idoTokenSet {
+        address idoToken = ido.token();
+        deal(idoToken, owner, 1 ether);
+
+        vm.startPrank(owner);
+        ERC20(idoToken).approve(address(ido), 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Raised is 0"));
+        ido.fillIDOToken(1 ether);
+        vm.stopPrank();
+    }
+
+    function testCanSendIDOTokenToContract()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        idoTokenSet
+    {
+        vm.warp(participationEndsAt + 30 minutes);
+
+        address idoToken = ido.token();
+        uint256 raised = ido.raised();
+        uint256 decimals = 1e18;
+        uint256 expectedAmountOfTokens = (raised * decimals) / (tokenPrice * decimals);
+
+        deal(idoToken, owner, expectedAmountOfTokens);
+
+        vm.startPrank(owner);
+        ERC20(idoToken).approve(address(ido), expectedAmountOfTokens);
+
+        vm.expectEmit(true, true, true, true);
+        emit IIDO.IDOTokensFilled(owner, expectedAmountOfTokens);
+        ido.fillIDOToken(expectedAmountOfTokens);
+        vm.stopPrank();
+
+        assertEq(ERC20(idoToken).balanceOf(address(ido)), expectedAmountOfTokens);
+    }
+
+    modifier idoTokenFilled(bool sendHalf) {
+        vm.warp(participationEndsAt + 30 minutes);
+        address idoToken = ido.token();
+        uint256 raised = ido.raised();
+        uint256 expectedAmountOfTokens = ido.tokenAmountByParticipation(raised);
+
+        if (sendHalf) expectedAmountOfTokens = expectedAmountOfTokens / 2;
+
+        deal(idoToken, owner, expectedAmountOfTokens);
+
+        vm.startPrank(owner);
+        ERC20(idoToken).approve(address(ido), expectedAmountOfTokens);
+        ido.fillIDOToken(expectedAmountOfTokens);
+        vm.stopPrank();
+        _;
+    }
+
+    function testFillInChunks()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        idoTokenSet
+        idoTokenFilled(true)
+    {
+        vm.warp(block.timestamp + 5 hours);
+        address idoToken = ido.token();
+        uint256 partialAmount = ERC20(idoToken).balanceOf(address(ido));
+        deal(idoToken, owner, partialAmount);
+
+        vm.startPrank(owner);
+        ERC20(idoToken).approve(address(ido), partialAmount);
+        ido.fillIDOToken(partialAmount);
+        vm.stopPrank();
+
+        assertEq(ERC20(idoToken).balanceOf(address(ido)), partialAmount * 2);
+    }
+
+    function testRevertFillIDOTokenTwice()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        address idoToken = ido.token();
+        deal(idoToken, owner, 1 ether);
+
+        vm.startPrank(owner);
+        ERC20(idoToken).approve(address(ido), 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Unable to receive more IDO tokens"));
+        ido.fillIDOToken(1 ether);
+        vm.stopPrank();
+    }
+
+    /// TGE CALCULATION
+
+    function testMustReturnZeroCheckingTGEBalanceBeforeTokenIsSet()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+    {
+        uint256 userAmountInTGE = ido.previewTGETokens(walletInTiers);
+
+        assertEq(userAmountInTGE, 0);
+    }
+
+    function testCanCheckTGEBalance()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        idoTokenSet
+    {
+        uint256 userAmountInTGE = ido.previewTGETokens(walletInTiers);
+        // price 0.013 usdc
+        // paid 100 usdc
+        // percentage 8%
+        // 100 / 0.013 = 7_692.3076923
+        // 8% of 7_692.3076923 = 615,384615384615384615
+        assertEq(userAmountInTGE, 615384615384615384615);
+
+        (uint256 _price,, uint256 _tgePercentage) = ido.amounts();
+        uint256 allocation = ido.allocations(walletInTiers);
+
+        UD60x18 price = convert(_price);
+
+        UD60x18 tokens = convert(allocation).div(price);
+
+        UD60x18 expectedTGEamount = tokens.mul(ud(_tgePercentage));
+
+        assertEq(userAmountInTGE, expectedTGEamount.intoUint256());
+    }
+
+    /// CALCULATE RELESEAD TOKENS
+
+    function testMustReturnZeroWhenVestingIsNotSet() external {
+        uint256 amount = ido.previewVestedTokens(bob);
+        assertEq(amount, 0);
+    }
+
+    function testMustReturnZeroWhenVestingDidNotStart() external {
+        uint256 amount = ido.previewVestedTokens(bob);
+        assertEq(amount, 0);
+    }
+
+    function testMustReturnZeroWhenWalletHasNoAllocation()
+        external
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+    {
+        vm.warp(vestingAt);
+
+        uint256 amount = ido.previewVestedTokens(bob);
+        assertEq(amount, 0);
+    }
+
+    function testMustReturnTGEBalanceWhenCliffPeriodIsOngoing()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        idoTokenSet
+    {
+        vm.warp(vestingAt + 1 days);
+
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+
+        uint256 amount = ido.previewVestedTokens(walletInTiers);
+        assertEq(amount, expectedTGEAmount);
+    }
+
+    /// CLAIM TGE
+
+    function testCanClaimTGE()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(vestingAt + 1 days);
+
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
+
+        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+
+        assertEq(walletBalanceAfter, walletBalance + expectedTGEAmount);
+    }
+
+    function testCanClaimTGEPlusLinearVestedInPeriod()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(vestingAt + 1 days);
+
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+
+        vm.warp(ido.cliffEndsAt() + 100 days);
+
+        uint256 expectedVestedTokens = ido.previewVestedTokens(walletInTiers);
+        assertTrue(expectedVestedTokens > expectedTGEAmount);
+
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
+
+        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+        assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
+    }
+
+    function testCanClaimVestedTokensAfterTGEClaim()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(vestingAt + 1 days);
+
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+
+        uint256 expectedVestedTokens = ido.previewVestedTokens(walletInTiers);
+        assertEq(expectedVestedTokens, expectedTGEAmount);
+
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
+
+        uint256 walletBalanceAfterTGEClaim = ERC20(ido.token()).balanceOf(walletInTiers);
+        assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
+
+        vm.warp(ido.cliffEndsAt() + 10 days);
+
+        uint256 expectedVestedTokensAfterTGE = ido.previewVestedTokens(walletInTiers);
+
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
+
+        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+
+        assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
     }
 }

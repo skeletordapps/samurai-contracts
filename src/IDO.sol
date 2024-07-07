@@ -9,7 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IIDO} from "./interfaces/IIDO.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract IDO is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -31,7 +31,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     mapping(address wallet => bool whitelisted) public whitelist;
     mapping(address wallet => string linkedWallet) public linkedWallets;
     mapping(address wallet => uint256 allocation) public allocations;
-    mapping(address wallet => uint256 tokens) public tokens;
     mapping(address wallet => bool tgeClaimed) public hasClaimedTGE;
     mapping(address wallet => uint256 tokens) public tokensClaimed;
     mapping(address wallet => uint256 timestamp) public lastClaimTimestamps;
@@ -128,7 +127,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     modifier canClaimTokens() {
         IIDO.Periods memory periodsCopy = periods;
         require(block.timestamp >= periodsCopy.vestingAt, IIDO.IIDO__Unauthorized("Not in vesting phase"));
-        require(tokens[msg.sender] > 0, IIDO.IIDO__Unauthorized("No tokens available"));
+        require(allocations[msg.sender] > 0, IIDO.IIDO__Unauthorized("No tokens available"));
         require(block.timestamp > lastClaimTimestamps[msg.sender], IIDO.IIDO__Unauthorized("Not allowed"));
         _;
     }
@@ -209,7 +208,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         require(accepted, IIDO.IIDO__Invalid("Token not accepted"));
 
         allocations[msg.sender] += amount;
-        tokens[msg.sender] = tokenAmountByParticipation(allocations[msg.sender]);
         raised += amount;
         emit IIDO.Participated(msg.sender, tokenAddress, amount);
 
@@ -253,7 +251,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         require(raised + amount <= amounts.maxAllocations, IIDO.IIDO__Invalid("Exceeds max allocations permitted"));
 
         allocations[msg.sender] += amount;
-        tokens[msg.sender] = tokenAmountByParticipation(allocations[msg.sender]);
         raised += amount;
         emit IIDO.Participated(msg.sender, address(0), amount);
     }
@@ -263,8 +260,17 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @dev This function is used to fill IDO tokens in the contract.
      * emit IDOTokenFilled(msg.sender, amount) Emitted when IDO tokens are deposited.
      */
-    function fillIDOToken() external {
-        uint256 amount = ud(raised).div(ud(amounts.tokenPrice)).intoUint256();
+    function fillIDOToken(uint256 amount) external {
+        require(token != address(0), IIDO.IIDO__Unauthorized("IDO token not set"));
+        require(raised > 0, IIDO.IIDO__Unauthorized("Raised is 0"));
+
+        uint256 max = tokenAmountByParticipation(raised);
+
+        require(
+            ERC20(token).balanceOf(address(this)) + amount <= max,
+            IIDO.IIDO__Unauthorized("Unable to receive more IDO tokens")
+        );
+
         ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit IIDO.IDOTokensFilled(msg.sender, amount);
     }
@@ -276,15 +282,20 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * emit Claimed(msg.sender, amount) Emitted when a user successfully claims their IDO tokens.
      */
     function claim() external canClaimTokens nonReentrant {
-        uint256 releasedTokens = calculateReleasedTokens(msg.sender);
-        require(releasedTokens > 0, IIDO.IIDO__Unauthorized("There is no released tokens available to claim"));
+        uint256 vested = previewVestedTokens(msg.sender);
+        require(vested > 0, IIDO.IIDO__Unauthorized("There is no vested tokens available to claim"));
+
+        if (!hasClaimedTGE[msg.sender]) hasClaimedTGE[msg.sender] = true;
+
+        // Update claimed tokens by user
+        tokensClaimed[msg.sender] += vested;
 
         // Update last claim timestamp based on the release type
         lastClaimTimestamps[msg.sender] =
             block.timestamp - (block.timestamp % getReleaseSchedule(periods.releaseSchedule));
-        emit IIDO.Claimed(msg.sender, releasedTokens);
+        emit IIDO.Claimed(msg.sender, vested);
 
-        ERC20(token).safeTransfer(msg.sender, releasedTokens);
+        ERC20(token).safeTransfer(msg.sender, vested);
     }
 
     /**
@@ -324,6 +335,13 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         }
 
         emit IIDO.ParticipationsWithdrawal(balance);
+    }
+
+    function setIDOToken(address _token) external onlyOwner nonReentrant {
+        require(token == address(0), IIDO.IIDO__Unauthorized("Token already set"));
+        token = _token;
+
+        emit IIDO.IDOTokenSet(_token);
     }
 
     /**
@@ -420,7 +438,19 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      *                  - releaseType: Type of token release schedule (e.g., cliff and vesting, linear release).
      */
     function setPeriods(IIDO.Periods memory _periods) public onlyOwner nonReentrant {
-        require(_periods.registrationAt >= block.timestamp, IIDO.IIDO__Invalid("registrationStartsAt cannot be zero"));
+        IIDO.Periods memory periodsCopy = periods;
+
+        if (periodsCopy.registrationAt == 0) {
+            require(
+                _periods.registrationAt >= block.timestamp,
+                IIDO.IIDO__Invalid("registrationStartsAt cannot be under now timestamp")
+            );
+        } else {
+            require(
+                _periods.registrationAt >= periodsCopy.registrationAt,
+                IIDO.IIDO__Invalid("New registrationStartsAt cannot be under current stored value")
+            );
+        }
 
         require(
             _periods.participationStartsAt > _periods.registrationAt,
@@ -432,16 +462,27 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             IIDO.IIDO__Invalid("participationEndsAt should be higher than participationStartsAt")
         );
 
-        IIDO.Periods memory periodsCopy = periods;
+        /// When vestingAt is not set
+        /// New vestingAt must be greater than new participationEndsAt
+        if (periodsCopy.vestingAt == 0 && _periods.vestingAt > 0) {
+            require(
+                _periods.vestingAt >= _periods.participationEndsAt,
+                IIDO.IIDO__Invalid("New vestingAt value must be greater or equal participationEndsAt")
+            );
+        }
 
+        /// When vestingAt is already set
+        /// New vestingAt must be greater or equal than current vestingAt
+        /// New vestingAt must be greater or equal new participationEndsAt
         if (periodsCopy.vestingAt > 0) {
+            require(
+                _periods.vestingAt >= _periods.participationEndsAt,
+                IIDO.IIDO__Invalid("New vestingAt must be greater or equal than participationEndsAt")
+            );
+
             require(
                 _periods.vestingAt >= periodsCopy.vestingAt,
                 IIDO.IIDO__Invalid("New vestingAt value must be greater or equal current vestingAt value")
-            );
-            require(
-                _periods.vestingAt >= _periods.participationEndsAt,
-                IIDO.IIDO__Invalid("vestingAt must be greater or equal than participationEndsAt")
             );
         }
 
@@ -529,8 +570,13 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The address of the user wallet for whom to calculate TGE tokens.
      * @return tgeAmount The calculated amount of IDO tokens allocated to the wallet at TGE.
      */
-    function calculateTGETokens(address wallet) public view returns (uint256) {
-        return tokens[wallet] * amounts.tgeReleasePercent / 100;
+    function previewTGETokens(address wallet) public view returns (uint256) {
+        if (token == address(0)) return 0;
+
+        UD60x18 tokens = _tokenAmountByParticipation(allocations[wallet]);
+        uint256 unlockedOnTGE = tokens.mul(ud(amounts.tgeReleasePercent)).intoUint256();
+
+        return unlockedOnTGE;
     }
 
     /**
@@ -538,45 +584,58 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @dev This function is a view function and does not modify contract state.
      *       It considers vesting period, claimed tokens, and allocation amount.
      * @param wallet The address of the user wallet for whom to calculate unlockable tokens.
-     * @return releasedTokens The calculated amount of released IDO tokens for the wallet.
+     * @return vested The calculated amount of IDO tokens vested for the wallet.
      */
-    function calculateReleasedTokens(address wallet) public view returns (uint256 releasedTokens) {
+    function previewVestedTokens(address wallet) public view returns (uint256) {
         IIDO.Periods memory periodsCopy = periods;
-        if (block.timestamp <= periodsCopy.vestingAt) return 0; // Vesting not started
+
+        if (periodsCopy.vestingAt == 0) return 0; // Vesting period not defined
+        if (block.timestamp < periodsCopy.vestingAt) return 0; // Vesting not started
         if (allocations[wallet] == 0) return 0; // Wallet has no allocations
 
-        uint256 userTokensClaimed = tokensClaimed[wallet];
-        uint256 userTokensBalance = tokens[wallet];
+        UD60x18 total = _tokenAmountByParticipation(allocations[wallet]);
+        UD60x18 claimed = ud(tokensClaimed[wallet]);
 
-        // TGE full release vesting
-        if (userTokensClaimed == userTokensBalance) return 0;
+        /// User already claimed all tokens vested
+        if (claimed == total) return 0;
 
-        uint256 userTokens = hasClaimedTGE[wallet]
-            ? userTokensBalance - userTokensClaimed
-            : userTokensBalance - calculateTGETokens(wallet) - userTokensClaimed;
+        /// Timestamp: End of cliff duration
+        uint256 _cliffEndsAt = cliffEndsAt();
+
+        bool claimedTGE = hasClaimedTGE[wallet];
+
+        /// Only TGE is unlocked during cliff period
+        if (block.timestamp < _cliffEndsAt) {
+            return claimedTGE ? 0 : previewTGETokens(wallet);
+        }
+
+        UD60x18 zero = convert(0);
+        UD60x18 tgeBalance = claimedTGE ? zero : _calculateTGETokens(wallet);
+        UD60x18 balance = total.sub(claimed).sub(tgeBalance);
+        UD60x18 vested;
 
         // Cliff Vesting
         if (vestingType == IIDO.VestingType.CliffVesting) {
-            releasedTokens = block.timestamp >= periodsCopy.cliff ? userTokens : 0;
+            vested = block.timestamp >= _cliffEndsAt ? balance.add(tgeBalance) : zero;
         }
 
         // Linear Vesting
         if (vestingType == IIDO.VestingType.LinearVesting) {
-            uint256 userLastClaimTimestamp = lastClaimTimestamps[wallet];
-            uint256 elapsedTime =
-                block.timestamp - userLastClaimTimestamp > 0 ? userLastClaimTimestamp : periodsCopy.vestingAt;
+            UD60x18 userLastClaimTimestamp = convert(lastClaimTimestamps[wallet]);
+            UD60x18 timeTopPick = userLastClaimTimestamp > zero ? userLastClaimTimestamp : convert(_cliffEndsAt);
+            UD60x18 elapsedTime = convert(block.timestamp).sub(timeTopPick);
 
-            // Adjust elapsed time based on release type
-            UD60x18 partialReleaseTime = ud(elapsedTime / getReleaseSchedule(periodsCopy.releaseSchedule));
-
-            UD60x18 _100Percent = ud(100);
-            // Calculate percentage released (preventing potential overflow)
-            UD60x18 percentageReleased = partialReleaseTime.mul(_100Percent).div(ud(block.timestamp));
-
-            releasedTokens = ud(userTokens).mul(percentageReleased).div(_100Percent).intoUint256();
+            if (elapsedTime > zero) {
+                UD60x18 vestingInterval = convert(getReleaseSchedule(periodsCopy.releaseSchedule)); // Get vesting interval based on schedule
+                UD60x18 vestedPerTime = balance.div(vestingInterval);
+                UD60x18 claimable = vestedPerTime.mul(elapsedTime);
+                vested = claimable < balance ? claimable : balance;
+            }
         }
 
-        return releasedTokens;
+        return claimedTGE
+            ? vested.intoUint256() // only new vested tokens
+            : vested.add(tgeBalance).intoUint256(); // tge amount + new vested tokens
     }
 
     /**
@@ -601,6 +660,26 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @return tokensPerAllocation The calculated amount of IDO tokens received per allocation unit.
      */
     function tokenAmountByParticipation(uint256 amount) public view returns (uint256 tokensPerAllocation) {
-        tokensPerAllocation = (amount / amounts.tokenPrice) * (usingETH ? 1e18 : 1e6);
+        UD60x18 tokens = _tokenAmountByParticipation(amount);
+        return tokens.intoUint256();
+    }
+
+    function cliffEndsAt() public view returns (uint256) {
+        IIDO.Periods memory _periods = periods;
+        return _periods.vestingAt + _periods.cliff;
+    }
+
+    function _tokenAmountByParticipation(uint256 amount) private view returns (UD60x18 tokensPerAllocation) {
+        require(token != address(0), IIDO.IIDO__Invalid("IDO token not set"));
+
+        UD60x18 price = convert(amounts.tokenPrice);
+        return convert(amount).div(price);
+    }
+
+    function _calculateTGETokens(address wallet) private view returns (UD60x18) {
+        if (token == address(0)) return convert(0);
+
+        UD60x18 tokens = _tokenAmountByParticipation(allocations[wallet]);
+        return tokens.mul(ud(amounts.tgeReleasePercent));
     }
 }

@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {IDO} from "../src/IDO.sol";
 import {IIDO} from "../src/interfaces/IIDO.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 
@@ -35,7 +35,8 @@ contract DeployIDO is Script {
         ranges[4] = range5;
         ranges[5] = range6;
 
-        IIDO.Amounts memory amounts = IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 8});
+        IIDO.Amounts memory amounts =
+            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
 
         uint256 rightNow = block.timestamp;
 
@@ -43,8 +44,8 @@ contract DeployIDO is Script {
             registrationAt: rightNow,
             participationStartsAt: rightNow + 1 days, // 24 hours
             participationEndsAt: rightNow + 2 days, // 48 hours
-            vestingAt: rightNow + 10 days,
-            cliff: 30 days,
+            vestingAt: 0,
+            cliff: 0,
             releaseSchedule: IIDO.ReleaseSchedule.None
         });
 
@@ -63,6 +64,8 @@ contract DeployIDO is Script {
         uint256 totalMax = 50_000 * DECIMALS;
         uint256 price = _usingETH ? 0.013e18 : 0.013e6;
 
+        // console.log("price deployed", price);
+
         IIDO.WalletRange[] memory ranges = new IIDO.WalletRange[](6);
 
         IIDO.WalletRange memory range1 = IIDO.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
@@ -79,7 +82,8 @@ contract DeployIDO is Script {
         ranges[4] = range5;
         ranges[5] = range6;
 
-        IIDO.Amounts memory amounts = IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 8});
+        IIDO.Amounts memory amounts =
+            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
 
         uint256 rightNow = block.timestamp;
 
@@ -87,8 +91,8 @@ contract DeployIDO is Script {
             registrationAt: rightNow,
             participationStartsAt: rightNow + 1 days, // 24 hours
             participationEndsAt: rightNow + 2 days, // 48 hours
-            vestingAt: rightNow + 10 days,
-            cliff: 30 days,
+            vestingAt: 0,
+            cliff: 0,
             releaseSchedule: IIDO.ReleaseSchedule.None
         });
 

@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {Script} from "forge-std/Script.sol";
 import {ParticipatorNFT} from "../src/ParticipatorNFT.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeployParticipatorNFT is Script {
     function run() external returns (ParticipatorNFT participatorNFT) {

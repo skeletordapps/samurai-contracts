@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {ParticipatorNftV2} from "../src/ParticipatorNftV2.sol";
 import {IParticipator} from "../src/interfaces/IParticipator.sol";
 import {USDCMock} from "../src/mocks/USDCMock.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 

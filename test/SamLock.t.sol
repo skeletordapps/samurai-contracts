@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {DeployLock} from "../script/DeployLock.s.sol";
 import {ISamLock} from "../src/interfaces/ISamLock.sol";

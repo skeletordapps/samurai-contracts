@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 import {ISamLock} from "./interfaces/ISamLock.sol";
 import {ISamuraiTiers, ISamNfts, ISamLocks, ISamGaugeLP} from "./interfaces/ISamuraiTiers.sol";
 

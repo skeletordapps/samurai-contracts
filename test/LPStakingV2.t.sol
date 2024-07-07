@@ -4,7 +4,7 @@
 // import {Test} from "forge-std/Test.sol";
 // import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 // import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-// import {console2} from "forge-std/console2.sol";
+// import {console} from "forge-std/console.sol";
 // import {LPStakingV2} from "../src/LPStakingV2.sol";
 // import {DeployLPStakingV2} from "../script/DeployLPStakingV2.s.sol";
 // import {ILPStaking} from "../src/interfaces/ILPStaking.sol";
