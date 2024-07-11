@@ -47,7 +47,7 @@ contract IDOEtherTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployIDO();
-        ido = deployer.runForTests(false, true);
+        ido = deployer.runForTests(true, true);
         owner = ido.owner();
         acceptedToken = ido.acceptedToken();
         bob = vm.addr(1);
@@ -56,9 +56,7 @@ contract IDOEtherTest is Test {
         mary = vm.addr(2);
         vm.label(mary, "mary");
 
-        randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
         walletInTiers = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
-        vm.label(randomUSDCHolder, "randomUSDCHolder");
 
         (tokenPrice, maxAllocations, tgeReleasePercent) = ido.amounts();
         uint256 numberOfRanges = ido.rangesLength();
@@ -70,14 +68,14 @@ contract IDOEtherTest is Test {
 
     function testConstructor() public {
         uint256 rightNow = block.timestamp;
-        assertFalse(ido.usingETH());
         assertEq(ido.owner(), owner);
-        assertEq(ido.acceptedToken(), vm.envAddress("BASE_USDC_ADDRESS"));
+        assertTrue(ido.usingETH());
+        assertEq(ido.acceptedToken(), address(0));
         assertFalse(ido.samuraiTiers() == address(0));
         assertTrue(maxAllocations > 0);
         assertTrue(ido.rangesLength() == 6);
-        assertEq(tokenPrice, 0.013e6);
-        assertEq(maxAllocations, 50_000e6);
+        assertEq(tokenPrice, 0.013e18);
+        assertEq(maxAllocations, 50_000 ether);
         assertEq(tgeReleasePercent, 0.08e18);
         assertEq(registrationAt, rightNow);
         assertEq(participationStartsAt, rightNow + 1 days);
@@ -86,12 +84,12 @@ contract IDOEtherTest is Test {
         assertEq(cliff, 0);
 
         IIDO.WalletRange[] memory expectedRanges = new IIDO.WalletRange[](6);
-        expectedRanges[0] = IIDO.WalletRange("Public", 100e6, 5_000e6);
-        expectedRanges[1] = IIDO.WalletRange("Ronin", 100e6, 100e6);
-        expectedRanges[2] = IIDO.WalletRange("Gokenin", 100e6, 200e6);
-        expectedRanges[3] = IIDO.WalletRange("Goshi", 100e6, 400e6);
-        expectedRanges[4] = IIDO.WalletRange("Hatamoto", 100e6, 800e6);
-        expectedRanges[5] = IIDO.WalletRange("Shogun", 100e6, 1_500e6);
+        expectedRanges[0] = IIDO.WalletRange("Public", 0.1 ether, 5 ether);
+        expectedRanges[1] = IIDO.WalletRange("Ronin", 0.1 ether, 0.1 ether);
+        expectedRanges[2] = IIDO.WalletRange("Gokenin", 0.1 ether, 0.5 ether);
+        expectedRanges[3] = IIDO.WalletRange("Goshi", 0.1 ether, 0.7 ether);
+        expectedRanges[4] = IIDO.WalletRange("Hatamoto", 0.1 ether, 1.4 ether);
+        expectedRanges[5] = IIDO.WalletRange("Shogun", 0.1 ether, 2 ether);
 
         uint256 totalOfRanges = ido.rangesLength();
 
@@ -166,47 +164,42 @@ contract IDOEtherTest is Test {
 
     // PARTICIPATING
 
-    function testRevertParticipationWhenNotRegistered() external walletLinked(bob) inParticipationPeriod {
-        vm.startPrank(bob);
-        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet not allowed"));
-        ido.participate(0);
-        vm.stopPrank();
-    }
-
-    function testRevertParticipationWithNonPermittedAmounts()
-        external
-        walletLinked(walletInTiers)
-        isWhitelisted(walletInTiers)
-        inParticipationPeriod
-    {
-        IIDO.WalletRange memory walletRange = ido.getWalletRange(walletInTiers);
-
-        vm.startPrank(walletInTiers);
-        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Amount too low"));
-        ido.participate(walletRange.min / 2);
-
-        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Amount too high"));
-        ido.participate(walletRange.max * 2);
-        vm.stopPrank();
-    }
-
-    modifier hasBalance(address wallet, uint256 amount) {
-        if (keccak256(abi.encodePacked(ERC20(acceptedToken).symbol())) == keccak256(abi.encodePacked("USDC"))) {
-            vm.startPrank(randomUSDCHolder);
-            ERC20(acceptedToken).transfer(wallet, amount);
-            vm.stopPrank();
-        } else {
-            deal(acceptedToken, wallet, amount);
-        }
-        _;
-    }
-
     modifier inParticipationPeriod() {
         vm.warp(participationStartsAt + 2 hours);
         _;
     }
 
-    function testCanParticipate()
+    function testRevertParticipationWhenNotRegistered() external walletLinked(bob) inParticipationPeriod {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet not allowed"));
+        ido.participateETH{value: 0}(0);
+        vm.stopPrank();
+    }
+
+    modifier hasBalance(address wallet, uint256 amount) {
+        vm.deal(wallet, amount);
+        _;
+    }
+
+    function testRevertParticipationETHWithNonPermittedAmounts()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        inParticipationPeriod
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max * 2)
+    {
+        IIDO.WalletRange memory walletRange = ido.getWalletRange(walletInTiers);
+
+        vm.startPrank(walletInTiers);
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Amount too low"));
+        ido.participateETH{value: walletRange.min / 2}(walletRange.min / 2);
+
+        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Amount too high"));
+        ido.participateETH{value: walletRange.max * 2}(walletRange.max * 2);
+        vm.stopPrank();
+    }
+
+    function testCanParticipateETH()
         external
         walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
@@ -217,20 +210,18 @@ contract IDOEtherTest is Test {
         uint256 amountToParticipate = walletRange.min;
 
         vm.startPrank(walletInTiers);
-        ERC20(acceptedToken).approve(address(ido), amountToParticipate);
         vm.expectEmit(true, true, true, true);
-        emit IIDO.Participated(walletInTiers, acceptedToken, amountToParticipate);
-        ido.participate(amountToParticipate);
+        emit IIDO.Participated(walletInTiers, address(0), amountToParticipate);
+        ido.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
 
         assertEq(ido.allocations(walletInTiers), amountToParticipate);
         assertEq(ido.raised(), amountToParticipate);
     }
 
-    modifier participated(address wallet, address token, uint256 amount) {
+    modifier participated(address wallet, uint256 amount) {
         vm.startPrank(wallet);
-        ERC20(token).approve(address(ido), amount);
-        ido.participate(amount);
+        ido.participateETH{value: amount}(amount);
         vm.stopPrank();
         _;
     }
@@ -250,16 +241,15 @@ contract IDOEtherTest is Test {
         external
         walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
-        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max * 2)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
     {
         IIDO.WalletRange memory walletRange = ido.getWalletRange(walletInTiers);
         uint256 amountToParticipate = walletRange.max;
         vm.startPrank(walletInTiers);
-        ERC20(acceptedToken).approve(address(ido), amountToParticipate);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Exceeds max allocation permitted"));
-        ido.participate(amountToParticipate);
+        ido.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
     }
 
@@ -269,7 +259,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max)
     {
         assertEq(ido.allocations(walletInTiers), ido.getWalletRange(walletInTiers).max);
 
@@ -280,13 +270,10 @@ contract IDOEtherTest is Test {
         ido.makePublic();
         vm.stopPrank();
 
-        vm.startPrank(randomUSDCHolder);
-        ERC20(acceptedToken).transfer(walletInTiers, amountToTopUp);
-        vm.stopPrank();
+        vm.deal(walletInTiers, amountToTopUp);
 
         vm.startPrank(walletInTiers);
-        ERC20(acceptedToken).approve(address(ido), amountToTopUp);
-        ido.participate(amountToTopUp);
+        ido.participateETH{value: amountToTopUp}(amountToTopUp);
         vm.stopPrank();
 
         assertEq(ido.allocations(walletInTiers), range.max);
@@ -302,9 +289,8 @@ contract IDOEtherTest is Test {
         uint256 amountToParticipate = walletRange.max;
 
         vm.startPrank(bob);
-        ERC20(acceptedToken).approve(address(ido), amountToParticipate);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Linked wallet not found"));
-        ido.participate(amountToParticipate);
+        ido.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
     }
 
@@ -319,10 +305,9 @@ contract IDOEtherTest is Test {
         uint256 amountToParticipate = walletRange.max;
 
         vm.startPrank(bob);
-        ERC20(acceptedToken).approve(address(ido), amountToParticipate);
         vm.expectEmit(true, true, true, true);
         emit IIDO.Participated(bob, acceptedToken, amountToParticipate);
-        ido.participate(amountToParticipate);
+        ido.participateETH{value: amountToParticipate}(amountToParticipate);
         vm.stopPrank();
 
         assertEq(ido.allocations(bob), amountToParticipate);
@@ -342,7 +327,7 @@ contract IDOEtherTest is Test {
 
     function testRevertSetAmountsWithLowerMaxAllocations() external {
         IIDO.Amounts memory newAmounts =
-            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: 20_000, tgeReleasePercent: tgeReleasePercent});
+            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: 20_000 ether, tgeReleasePercent: tgeReleasePercent});
 
         vm.startPrank(owner);
         vm.expectRevert(
@@ -354,7 +339,7 @@ contract IDOEtherTest is Test {
 
     function testRevertSetAmountsWithLowerTGEReleasePercent() external {
         IIDO.Amounts memory newAmounts =
-            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: maxAllocations, tgeReleasePercent: 2});
+            IIDO.Amounts({tokenPrice: tokenPrice, maxAllocations: maxAllocations, tgeReleasePercent: 0.07e18});
 
         vm.startPrank(owner);
         vm.expectRevert(
@@ -646,26 +631,26 @@ contract IDOEtherTest is Test {
 
     // WITHDRAW RAISED
 
-    function testCanWithdrawRaisedAmount()
+    function testCanWithdrawRaisedETHAmount()
         external
         walletLinked(walletInTiers)
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
     {
-        uint256 tokenBalanceBefore = ERC20(acceptedToken).balanceOf(address(ido));
-        uint256 tokenOwnerBalanceBefore = ERC20(acceptedToken).balanceOf(owner);
+        uint256 balanceBefore = address(ido).balance;
+        uint256 ownerBalanceBefore = owner.balance;
 
         vm.startPrank(owner);
         ido.withdraw();
         vm.stopPrank();
 
-        uint256 tokenBalanceAfter = ERC20(acceptedToken).balanceOf(address(ido));
-        uint256 tokenOwnerBalanceAfter = ERC20(acceptedToken).balanceOf(owner);
+        uint256 balanceAfter = address(ido).balance;
+        uint256 ownerBalanceAfter = owner.balance;
 
-        assertEq(tokenBalanceAfter, 0);
-        assertEq(tokenOwnerBalanceAfter, tokenOwnerBalanceBefore + tokenBalanceBefore);
+        assertEq(balanceAfter, 0);
+        assertEq(ownerBalanceAfter, ownerBalanceBefore + balanceBefore);
     }
 
     // SET IDO TOKEN
@@ -710,7 +695,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max)
     {
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "IDO token not set"));
@@ -735,15 +720,14 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max)
         idoTokenSet
     {
         vm.warp(participationEndsAt + 30 minutes);
 
         address idoToken = ido.token();
         uint256 raised = ido.raised();
-        uint256 decimals = 1e18;
-        uint256 expectedAmountOfTokens = (raised * decimals) / (tokenPrice * decimals);
+        uint256 expectedAmountOfTokens = raised / tokenPrice;
 
         deal(idoToken, owner, expectedAmountOfTokens);
 
@@ -781,7 +765,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max)
         idoTokenSet
         idoTokenFilled(true)
     {
@@ -804,7 +788,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).max)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -826,7 +810,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
     {
         uint256 userAmountInTGE = ido.previewTGETokens(walletInTiers);
 
@@ -839,24 +823,23 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         idoTokenSet
     {
         uint256 userAmountInTGE = ido.previewTGETokens(walletInTiers);
-        // price 0.013 usdc
-        // paid 100 usdc
+
+        // price 0.013 ether
+        // paid 0.1 ether
         // percentage 8%
-        // 100 / 0.013 = 7_692.3076923
-        // 8% of 7_692.3076923 = 615,384615384615384615
-        assertEq(userAmountInTGE, 615384615384615384615);
+        // 0.1 / 0.013 = 7,692307692307692 = 7692307692307692000
+        // 8% of 7,692307692307692 = 0,615384615384615 = 615384615384615000 wei
+        assertEq(userAmountInTGE, 615384615384615384);
 
         (uint256 _price,, uint256 _tgePercentage) = ido.amounts();
         uint256 allocation = ido.allocations(walletInTiers);
 
         UD60x18 price = convert(_price);
-
         UD60x18 tokens = convert(allocation).div(price);
-
         UD60x18 expectedTGEamount = tokens.mul(ud(_tgePercentage));
 
         assertEq(userAmountInTGE, expectedTGEamount.intoUint256());
@@ -890,7 +873,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
     {
@@ -910,7 +893,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -965,7 +948,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -983,7 +966,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1001,7 +984,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1020,7 +1003,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1029,15 +1012,14 @@ contract IDOEtherTest is Test {
         vm.warp(vestingAt + period - 3 hours);
         (uint256 refundableAmount, uint256 refundingFees) = ido.previewRefunding(walletInTiers);
 
-        address _acceptedToken = ido.acceptedToken();
-        uint256 balance = ERC20(_acceptedToken).balanceOf(walletInTiers);
+        uint256 balance = walletInTiers.balance;
 
         vm.startPrank(walletInTiers);
         emit IIDO.Refunded(walletInTiers, refundableAmount);
         ido.getRefund();
         vm.stopPrank();
 
-        uint256 balanceEnd = ERC20(_acceptedToken).balanceOf(walletInTiers);
+        uint256 balanceEnd = walletInTiers.balance;
         assertEq(balanceEnd, balance + refundableAmount);
         assertEq(ido.fees(), refundingFees);
     }
@@ -1048,7 +1030,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1077,7 +1059,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1116,7 +1098,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1155,14 +1137,10 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
-        participated(
-            walletInTiers,
-            acceptedToken,
-            ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
-        )
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1180,7 +1158,7 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1198,14 +1176,10 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
-        participated(
-            walletInTiers,
-            acceptedToken,
-            ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
-        )
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)
@@ -1234,14 +1208,10 @@ contract IDOEtherTest is Test {
         isWhitelisted(walletInTiers)
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
-        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
-        participated(
-            walletInTiers,
-            acceptedToken,
-            ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
-        )
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
         periodsSet(participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
         idoTokenSet
         idoTokenFilled(false)

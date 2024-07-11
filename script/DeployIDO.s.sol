@@ -12,28 +12,33 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 contract DeployIDO is Script {
     function run() external returns (IDO ido) {
         address samuraiTiers = 0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74;
+        address acceptedToken = vm.envAddress("BASE_USDC_ADDRESS"); // use address(0) if using ether
         bool usingETH = false;
         bool usingLinkedWallet = true;
         IIDO.VestingType vestingType = IIDO.VestingType.LinearVesting;
-        uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 50_000 * DECIMALS;
-        uint256 price = usingETH ? 0.15e18 : 0.15e6;
+        uint256 totalMax = usingETH ? 50_000 ether : 50_000e6;
+        uint256 price = usingETH ? 0.15 ether : 0.15e6;
+        bool refundable = true;
+        uint256 refundPercent = 0.01e18;
+        uint256 refundPeriod = 24 days;
 
         IIDO.WalletRange[] memory ranges = new IIDO.WalletRange[](6);
 
-        IIDO.WalletRange memory range1 = IIDO.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
-        IIDO.WalletRange memory range2 = IIDO.WalletRange("Ronin", 100 * DECIMALS, 100 * DECIMALS);
-        IIDO.WalletRange memory range3 = IIDO.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
-        IIDO.WalletRange memory range4 = IIDO.WalletRange("Goshi", 100 * DECIMALS, 400 * DECIMALS);
-        IIDO.WalletRange memory range5 = IIDO.WalletRange("Hatamoto", 100 * DECIMALS, 800 * DECIMALS);
-        IIDO.WalletRange memory range6 = IIDO.WalletRange("Shogun", 100 * DECIMALS, 1_500 * DECIMALS);
-
-        ranges[0] = range1;
-        ranges[1] = range2;
-        ranges[2] = range3;
-        ranges[3] = range4;
-        ranges[4] = range5;
-        ranges[5] = range6;
+        if (usingETH) {
+            ranges[0] = IIDO.WalletRange("Public", 0.1 ether, 5 ether);
+            ranges[1] = IIDO.WalletRange("Ronin", 0.1 ether, 0.1 ether);
+            ranges[2] = IIDO.WalletRange("Gokenin", 0.1 ether, 0.5 ether);
+            ranges[3] = IIDO.WalletRange("Goshi", 0.1 ether, 0.7 ether);
+            ranges[4] = IIDO.WalletRange("Hatamoto", 0.1 ether, 1.4 ether);
+            ranges[5] = IIDO.WalletRange("Shogun", 0.1 ether, 2 ether);
+        } else {
+            ranges[0] = IIDO.WalletRange("Public", 100e6, 5_000e6);
+            ranges[1] = IIDO.WalletRange("Ronin", 100e6, 100e6);
+            ranges[2] = IIDO.WalletRange("Gokenin", 100e6, 200e6);
+            ranges[3] = IIDO.WalletRange("Goshi", 100e6, 400e6);
+            ranges[4] = IIDO.WalletRange("Hatamoto", 100e6, 800e6);
+            ranges[5] = IIDO.WalletRange("Shogun", 100e6, 1_500e6);
+        }
 
         IIDO.Amounts memory amounts =
             IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
@@ -49,9 +54,13 @@ contract DeployIDO is Script {
             releaseSchedule: IIDO.ReleaseSchedule.None
         });
 
+        IIDO.Refund memory refund = IIDO.Refund({active: refundable, feePercent: refundPercent, period: refundPeriod});
+
         vm.startBroadcast();
-        ido = new IDO(samuraiTiers, usingETH, usingLinkedWallet, vestingType, amounts, periods, ranges);
-        if (!usingETH) setTokens(ido);
+        ido = new IDO(
+            samuraiTiers, acceptedToken, usingETH, usingLinkedWallet, vestingType, amounts, periods, ranges, refund
+        );
+
         vm.stopBroadcast();
 
         return ido;
@@ -60,27 +69,29 @@ contract DeployIDO is Script {
     // Deploys the Samurai tiers for tests
     function runForTests(bool _usingETH, bool _usingLinkedWallet) external returns (IDO ido) {
         IIDO.VestingType vestingType = IIDO.VestingType.LinearVesting;
-        uint256 DECIMALS = _usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 50_000 * DECIMALS;
-        uint256 price = _usingETH ? 0.013e18 : 0.013e6;
-
-        // console.log("price deployed", price);
+        uint256 totalMax = _usingETH ? 50_000 ether : 50_000e6;
+        uint256 price = _usingETH ? 0.013 ether : 0.013e6;
+        bool refundable = true;
+        uint256 refundPercent = 0.01e18;
+        uint256 refundPeriod = 24 days;
 
         IIDO.WalletRange[] memory ranges = new IIDO.WalletRange[](6);
 
-        IIDO.WalletRange memory range1 = IIDO.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
-        IIDO.WalletRange memory range2 = IIDO.WalletRange("Ronin", 100 * DECIMALS, 100 * DECIMALS);
-        IIDO.WalletRange memory range3 = IIDO.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
-        IIDO.WalletRange memory range4 = IIDO.WalletRange("Goshi", 100 * DECIMALS, 400 * DECIMALS);
-        IIDO.WalletRange memory range5 = IIDO.WalletRange("Hatamoto", 100 * DECIMALS, 800 * DECIMALS);
-        IIDO.WalletRange memory range6 = IIDO.WalletRange("Shogun", 100 * DECIMALS, 1_500 * DECIMALS);
-
-        ranges[0] = range1;
-        ranges[1] = range2;
-        ranges[2] = range3;
-        ranges[3] = range4;
-        ranges[4] = range5;
-        ranges[5] = range6;
+        if (_usingETH) {
+            ranges[0] = IIDO.WalletRange("Public", 0.1 ether, 5 ether);
+            ranges[1] = IIDO.WalletRange("Ronin", 0.1 ether, 0.1 ether);
+            ranges[2] = IIDO.WalletRange("Gokenin", 0.1 ether, 0.5 ether);
+            ranges[3] = IIDO.WalletRange("Goshi", 0.1 ether, 0.7 ether);
+            ranges[4] = IIDO.WalletRange("Hatamoto", 0.1 ether, 1.4 ether);
+            ranges[5] = IIDO.WalletRange("Shogun", 0.1 ether, 2 ether);
+        } else {
+            ranges[0] = IIDO.WalletRange("Public", 100e6, 5_000e6);
+            ranges[1] = IIDO.WalletRange("Ronin", 100e6, 100e6);
+            ranges[2] = IIDO.WalletRange("Gokenin", 100e6, 200e6);
+            ranges[3] = IIDO.WalletRange("Goshi", 100e6, 400e6);
+            ranges[4] = IIDO.WalletRange("Hatamoto", 100e6, 800e6);
+            ranges[5] = IIDO.WalletRange("Shogun", 100e6, 1_500e6);
+        }
 
         IIDO.Amounts memory amounts =
             IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
@@ -100,12 +111,33 @@ contract DeployIDO is Script {
         address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
         address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
 
+        IIDO.Refund memory refund = IIDO.Refund({active: refundable, feePercent: refundPercent, period: refundPeriod});
+
         vm.startBroadcast();
         SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
         addInitialTiers(samuraiTiers);
 
-        ido = new IDO(address(samuraiTiers), _usingETH, _usingLinkedWallet, vestingType, amounts, periods, ranges);
-        if (!_usingETH) setTokens(ido);
+        address _acceptedToken;
+        if (_usingETH) {
+            _acceptedToken = address(0);
+        } else if (block.chainid == 31337) {
+            USDCMock usdcMock = new USDCMock("USDC Mock", "USDM");
+            _acceptedToken = address(usdcMock);
+        } else {
+            _acceptedToken = vm.envAddress("BASE_USDC_ADDRESS");
+        }
+
+        ido = new IDO(
+            address(samuraiTiers),
+            _acceptedToken,
+            _usingETH,
+            _usingLinkedWallet,
+            vestingType,
+            amounts,
+            periods,
+            ranges,
+            refund
+        );
         vm.stopBroadcast();
 
         return ido;
@@ -156,20 +188,6 @@ contract DeployIDO is Script {
             Shogun.minLPStaking,
             Shogun.maxLPStaking
         );
-    }
-
-    function setTokens(IDO ido) public {
-        address[] memory acceptedTokens;
-        if (block.chainid == 31337) {
-            acceptedTokens = new address[](1);
-            USDCMock usdcMock = new USDCMock("USDC Mock", "USDM");
-            acceptedTokens[0] = address(usdcMock);
-        } else {
-            acceptedTokens = new address[](1);
-            acceptedTokens[0] = vm.envAddress("BASE_USDC_ADDRESS");
-        }
-
-        ido.setTokens(acceptedTokens);
     }
 
     function testMock() public {}

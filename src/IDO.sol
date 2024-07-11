@@ -11,22 +11,31 @@ import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {console} from "forge-std/console.sol";
 
+library Scale {
+    function toPrecision(UD60x18 value) internal pure returns (uint256) {
+        return convert(value);
+    }
+}
+
 contract IDO is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
+    using Scale for UD60x18;
 
     string public idoName;
     string public idoSymbol;
     string public idoDescription;
     address public token; // the IDO token
     address public samuraiTiers;
-    address[] public acceptedTokens;
+    address public acceptedToken;
     uint256 public raised;
+    uint256 public fees;
     bool public isPublic;
     bool public usingETH;
     bool public usingLinkedWallet;
     IIDO.VestingType public vestingType;
     IIDO.Amounts public amounts;
     IIDO.Periods public periods;
+    IIDO.Refund public refund;
 
     mapping(address wallet => bool whitelisted) public whitelist;
     mapping(address wallet => string linkedWallet) public linkedWallets;
@@ -34,6 +43,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     mapping(address wallet => bool tgeClaimed) public hasClaimedTGE;
     mapping(address wallet => uint256 tokens) public tokensClaimed;
     mapping(address wallet => uint256 timestamp) public lastClaimTimestamps;
+    mapping(address wallet => uint256 amount) public refunds;
     IIDO.WalletRange[] public ranges;
 
     /**
@@ -44,28 +54,37 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @param _amounts Struct containing initial amounts configuration: token price, max allocations, TGE release percent.
      * @param _periods Struct containing initial periods configuration: registration start, participation start/end, TGE vesting at.
      * @param _ranges Array of structs defining participation ranges for different tiers.
+     * @param _refund Struct containing initial refunding configuration: active flag and fee percent.
      */
     constructor(
         address _samuraiTiers,
+        address _acceptedToken,
         bool _usingETH,
         bool _usingLinkedWallet,
         IIDO.VestingType _vestingType,
         IIDO.Amounts memory _amounts,
         IIDO.Periods memory _periods,
-        IIDO.WalletRange[] memory _ranges
+        IIDO.WalletRange[] memory _ranges,
+        IIDO.Refund memory _refund
     ) Ownable(msg.sender) {
         require(_samuraiTiers != address(0), IIDO.IIDO__Invalid("Invalid address"));
+        if (!_usingETH) {
+            require(_acceptedToken != address(0), IIDO.IIDO__Invalid("Invalid address"));
+        }
+
         require(_amounts.tokenPrice > 0, IIDO.IIDO__Invalid("Token price should be greater than 0"));
         require(_amounts.maxAllocations > 0, IIDO.IIDO__Invalid("Total Max should be greater than 0"));
         require(_amounts.tgeReleasePercent > 0, IIDO.IIDO__Invalid("TGE release percent should be greater than 0"));
 
         samuraiTiers = _samuraiTiers;
+        acceptedToken = _acceptedToken;
         usingETH = _usingETH;
         usingLinkedWallet = _usingLinkedWallet;
         vestingType = _vestingType;
         setAmounts(_amounts);
         setPeriods(_periods);
         setRanges(_ranges);
+        setRefund(_refund);
     }
 
     /**
@@ -169,11 +188,10 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      *       if the total raised amount doesn't exceed the maximum allocations,
      *       and if the provided token address is valid (non-zero) and accepted by the contract.
      *       Additionally, the user must be whitelisted or public participation must be allowed.
-     * @param tokenAddress The address of the ERC20 token used for participation.
      * @param amount The amount of tokens to participate with.
      * emit Allocated(msg.sender, tokenAddress, amount) Emitted when a user successfully participates with a token.
      */
-    function participate(address tokenAddress, uint256 amount)
+    function participate(uint256 amount)
         external
         whenNotPaused
         rangesNotEmpty
@@ -186,7 +204,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             IIDO.IIDO__Unauthorized("Not in participation period")
         );
         require(whitelist[msg.sender] || isPublic, IIDO.IIDO__Unauthorized("Wallet not allowed"));
-        require(tokenAddress != address(0), IIDO.IIDO__Invalid("Invalid Token"));
         IIDO.WalletRange memory walletRange = getWalletRange(msg.sender);
         require(amount >= walletRange.min, IIDO.IIDO__Invalid("Amount too low"));
         require(amount <= walletRange.max, IIDO.IIDO__Invalid("Amount too high"));
@@ -196,22 +213,11 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
 
         require(raised + amount <= amounts.maxAllocations, IIDO.IIDO__Invalid("Exceeds max allocations permitted"));
 
-        bool accepted;
-
-        for (uint256 i = 0; i < acceptedTokens.length; i++) {
-            if (tokenAddress == acceptedTokens[i]) {
-                accepted = true;
-                break;
-            }
-        }
-
-        require(accepted, IIDO.IIDO__Invalid("Token not accepted"));
-
         allocations[msg.sender] += amount;
         raised += amount;
-        emit IIDO.Participated(msg.sender, tokenAddress, amount);
+        emit IIDO.Participated(msg.sender, acceptedToken, amount);
 
-        ERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
+        ERC20(acceptedToken).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     /**
@@ -262,7 +268,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      */
     function fillIDOToken(uint256 amount) external {
         require(token != address(0), IIDO.IIDO__Unauthorized("IDO token not set"));
-        require(raised > 0, IIDO.IIDO__Unauthorized("Raised is 0"));
+        require(raised > 0, IIDO.IIDO__Unauthorized("Nothing raised"));
 
         uint256 max = tokenAmountByParticipation(raised);
 
@@ -273,6 +279,22 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
 
         ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit IIDO.IDOTokensFilled(msg.sender, amount);
+    }
+
+    function getRefund() external nonReentrant {
+        (UD60x18 _refundableAmount, UD60x18 refundingFee) = _calculateRefunding(msg.sender);
+
+        uint256 refundableAmount = _refundableAmount.toPrecision();
+
+        fees += refundingFee.toPrecision();
+
+        emit IIDO.Refunded(msg.sender, refundableAmount);
+
+        if (usingETH) {
+            payable(address(msg.sender)).transfer(refundableAmount);
+        } else {
+            ERC20(acceptedToken).safeTransfer(msg.sender, refundableAmount);
+        }
     }
 
     /**
@@ -299,21 +321,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows the contract owner to set the accepted ERC20 tokens for participation.
-     * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     *       It reverts if any of the provided token addresses are invalid (zero address).
-     * @param _acceptedTokens An array of addresses for the accepted ERC20 tokens.
-     */
-    function setTokens(address[] memory _acceptedTokens) external onlyOwner nonReentrant {
-        acceptedTokens = new address[](_acceptedTokens.length);
-        for (uint256 i = 0; i < _acceptedTokens.length; i++) {
-            require(_acceptedTokens[i] != address(0), IIDO.IIDO__Invalid("Invalid Token"));
-            acceptedTokens[i] = _acceptedTokens[i];
-        }
-        emit IIDO.TokensSet(acceptedTokens);
-    }
-
-    /**
      * @notice Allows the contract owner to withdraw the raised funds.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
      *       The behavior depends on the `usingETH` flag:
@@ -327,11 +334,8 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             balance = address(this).balance;
             payable(owner()).transfer(balance); // Transfer ETH directly if usingETH is true
         } else {
-            for (uint256 i = 0; i < acceptedTokens.length; i++) {
-                uint256 partialBalance = ERC20(acceptedTokens[i]).balanceOf(address(this));
-                balance += partialBalance;
-                ERC20(acceptedTokens[i]).safeTransfer(owner(), partialBalance);
-            }
+            balance = ERC20(acceptedToken).balanceOf(address(this));
+            ERC20(acceptedToken).safeTransfer(owner(), balance);
         }
 
         emit IIDO.ParticipationsWithdrawal(balance);
@@ -345,18 +349,41 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows the contract owner to withdraw any remaining IDO tokens from the contract.
+     * @notice Allows the contract owner to withdraw remaining IDO tokens of a specific wallet.
+     * This feature is designed to help participators with problems in it's wallets.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     * It reverts if the IDO token address is invalid or there are no tokens to claim.
+     * It reverts if the IDO token address is not set or there are no tokens to claim.
+     * emit Claimed(wallet, balance) Emitted when remaining IDO tokens are withdrawn.
+     */
+    function emergencyWithdrawByWallet(address wallet) external onlyOwner nonReentrant {
+        require(token != address(0), IIDO.IIDO__Unauthorized("Token not set"));
+        require(block.timestamp > _vestingEndsAt(), IIDO.IIDO__Unauthorized("Vesting is ongoing"));
+
+        uint256 allocation = allocations[wallet];
+        require(allocation > 0, IIDO.IIDO__Unauthorized("Wallet has no allocation"));
+
+        tokensClaimed[wallet] = tokenAmountByParticipation(allocation);
+
+        uint256 vested = previewVestedTokens(wallet);
+        emit IIDO.Claimed(wallet, vested);
+
+        ERC20(token).safeTransfer(owner(), vested);
+    }
+
+    /**
+     * @notice Allows the contract owner to withdraw remaining IDO tokens.
+     * This feature is designed to help with problems and edge cases.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     * It reverts if the IDO token address is not set or there are no tokens to withdraw.
      * emit RemainingTokensWithdrawal(balance) Emitted when remaining IDO tokens are withdrawn.
      */
-    function withdrawIDOTokens() external onlyOwner nonReentrant {
-        require(token != address(0), IIDO.IIDO__Invalid("Invalid Address"));
+    function emergencyWithdraw() external onlyOwner nonReentrant {
+        require(token != address(0), IIDO.IIDO__Unauthorized("Token not set"));
         uint256 balance = ERC20(token).balanceOf(address(this));
-        require(balance > 0, IIDO.IIDO__Unauthorized("Nothing to claim"));
+        require(balance > 0, IIDO.IIDO__Unauthorized("Nothing to withdraw"));
 
-        emit IIDO.RemainingTokensWithdrawal(balance);
         ERC20(token).safeTransfer(owner(), balance);
+        emit IIDO.RemainingTokensWithdrawal(balance);
     }
 
     /**
@@ -417,8 +444,21 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         );
         ranges = new IIDO.WalletRange[](_ranges.length);
         for (uint256 i = 0; i < _ranges.length; i++) {
-            // all ranges must be validated
-            // each range must be greater than i-1
+            IIDO.WalletRange memory previous;
+
+            if (i > 1) previous = _ranges[i - 1];
+
+            IIDO.WalletRange memory current = _ranges[i];
+
+            require(bytes(current.name).length > 0, IIDO.IIDO__Invalid("Name is required"));
+
+            if (previous.min > 0) {
+                require(
+                    current.min >= previous.min, IIDO.IIDO__Invalid("Min must be greater or equal than previous range")
+                );
+                require(current.max > previous.max, IIDO.IIDO__Invalid("Max must be greater than previous range"));
+            }
+
             ranges[i] = _ranges[i];
         }
 
@@ -501,6 +541,11 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         emit IIDO.PeriodsSet(_periods);
     }
 
+    function setRefund(IIDO.Refund memory _refund) public onlyOwner nonReentrant {
+        refund = _refund;
+        emit IIDO.RefundSet(_refund);
+    }
+
     /**
      * @notice Retrieves the participation range applicable to a specific wallet based on their tier.
      * @dev This function is view-only and retrieves the range information from the `SamuraiTiers` contract
@@ -536,15 +581,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Returns the number of accepted tokens configured for participation.
-     * @dev This function is view-only and simply returns the length of the `acceptedTokens` array.
-     * @return The number of accepted ERC20 tokens.
-     */
-    function acceptedTokensLength() public view returns (uint256) {
-        return acceptedTokens.length;
-    }
-
-    /**
      * @notice Returns the number of participation ranges defined for the allocation.
      * @dev This function is view-only and simply returns the length of the `ranges` array.
      * @return The number of defined participation ranges.
@@ -562,6 +598,14 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     function getRange(uint256 index) public view returns (IIDO.WalletRange memory) {
         require(index < ranges.length, IIDO.IIDO__Invalid("Invalid range index"));
         return ranges[index];
+    }
+
+    function previewRefunding(address wallet) public view returns (uint256, uint256) {
+        (UD60x18 _refundableAmount, UD60x18 _refundingFees) = _calculateRefunding(wallet);
+        uint256 refundableAmount = _refundableAmount.toPrecision();
+        uint256 refundingFees = _refundingFees.toPrecision();
+
+        return (refundableAmount, refundingFees);
     }
 
     /**
@@ -676,10 +720,40 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         return convert(amount).div(price);
     }
 
+    function _calculateRefunding(address wallet) private view returns (UD60x18, UD60x18) {
+        require(!hasClaimedTGE[wallet], IIDO.IIDO__Unauthorized("Not refundable"));
+
+        IIDO.Periods memory periodsCopy = periods;
+        IIDO.Refund memory refundCopy = refund;
+        require(
+            block.timestamp >= periodsCopy.vestingAt && block.timestamp <= periodsCopy.vestingAt + refundCopy.period,
+            IIDO.IIDO__Unauthorized("Not refundable")
+        );
+
+        UD60x18 allocation = convert(allocations[wallet]);
+        UD60x18 refundableAmount = allocation.mul(ud(refundCopy.feePercent));
+        UD60x18 refundingFees = allocation.sub(refundableAmount);
+
+        return (refundableAmount, refundingFees);
+    }
+
     function _calculateTGETokens(address wallet) private view returns (UD60x18) {
         if (token == address(0)) return convert(0);
 
         UD60x18 tokens = _tokenAmountByParticipation(allocations[wallet]);
         return tokens.mul(ud(amounts.tgeReleasePercent));
+    }
+
+    function _vestingEndsAt() public view returns (uint256) {
+        UD60x18 vestingInterval = convert(getReleaseSchedule(periods.releaseSchedule)); // Get vesting interval based on schedule
+        UD60x18 tokensByParticipations = _tokenAmountByParticipation(raised);
+        UD60x18 vestedPerTime = tokensByParticipations.div(vestingInterval);
+        UD60x18 vestingDuration = tokensByParticipations.div(vestedPerTime);
+
+        IIDO.Periods memory periodCopy = periods;
+
+        UD60x18 vestingEndsAt = convert(periodCopy.vestingAt).add(convert(periodCopy.cliff)).add(vestingDuration);
+
+        return vestingEndsAt.toPrecision();
     }
 }
