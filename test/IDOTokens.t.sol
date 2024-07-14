@@ -1257,4 +1257,33 @@ contract IDOEtherTest is Test {
         ido.emergencyWithdraw();
         vm.stopPrank();
     }
+
+    // GET RELEASE SCHEDULE BY SCHEDULE
+    function testGetReleaseScheduleTimestamp() public {
+        uint256 expectedTimestamp = 1 minutes;
+        IIDO.ReleaseSchedule _releaseSchedule = IIDO.ReleaseSchedule.Minute;
+
+        uint256 timestamp = ido.getReleaseSchedule(_releaseSchedule);
+        assertEq(timestamp, expectedTimestamp);
+
+        expectedTimestamp = 1 days;
+        _releaseSchedule = IIDO.ReleaseSchedule.Day;
+        timestamp = ido.getReleaseSchedule(_releaseSchedule);
+        assertEq(timestamp, expectedTimestamp);
+
+        expectedTimestamp = 7 days;
+        _releaseSchedule = IIDO.ReleaseSchedule.Week;
+        timestamp = ido.getReleaseSchedule(_releaseSchedule);
+        assertEq(timestamp, expectedTimestamp);
+
+        expectedTimestamp = 30 days;
+        _releaseSchedule = IIDO.ReleaseSchedule.Month;
+        timestamp = ido.getReleaseSchedule(_releaseSchedule);
+        assertEq(timestamp, expectedTimestamp);
+
+        expectedTimestamp = 365 days;
+        _releaseSchedule = IIDO.ReleaseSchedule.Year;
+        timestamp = ido.getReleaseSchedule(_releaseSchedule);
+        assertEq(timestamp, expectedTimestamp);
+    }
 }
