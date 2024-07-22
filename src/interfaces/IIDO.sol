@@ -55,6 +55,7 @@ interface IIDO {
         uint256 registrationAt;
         uint256 participationStartsAt;
         uint256 participationEndsAt;
+        uint256 vestingDuration;
         uint256 vestingAt;
         uint256 cliff;
         ReleaseSchedule releaseSchedule;
