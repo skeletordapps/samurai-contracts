@@ -34,15 +34,6 @@ interface IIDO {
         CliffVesting
     }
 
-    enum ReleaseSchedule {
-        None,
-        Minute,
-        Day,
-        Week,
-        Month,
-        Year
-    }
-
     /// Structs
 
     struct WalletRange {
@@ -58,7 +49,6 @@ interface IIDO {
         uint256 vestingDuration;
         uint256 vestingAt;
         uint256 cliff;
-        ReleaseSchedule releaseSchedule;
     }
 
     struct Amounts {

@@ -137,6 +137,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         IIDO.Periods memory periodsCopy = periods;
         require(block.timestamp >= periodsCopy.vestingAt, IIDO.IIDO__Unauthorized("Not in vesting phase"));
         require(allocations[msg.sender] > 0, IIDO.IIDO__Unauthorized("No tokens available"));
+        // console.log("block", block.timestamp, lastClaimTimestamps[msg.sender]);
         require(block.timestamp > lastClaimTimestamps[msg.sender], IIDO.IIDO__Unauthorized("Not allowed"));
         _;
     }
@@ -302,8 +303,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         tokensClaimed[msg.sender] += claimable;
 
         // Update last claim timestamp based on the release type
-        lastClaimTimestamps[msg.sender] =
-            block.timestamp - (block.timestamp % getReleaseSchedule(periods.releaseSchedule));
+        lastClaimTimestamps[msg.sender] = block.timestamp;
         emit IIDO.Claimed(msg.sender, claimable);
 
         ERC20(token).safeTransfer(msg.sender, claimable);
@@ -543,13 +543,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             require(_periods.cliff >= periodsCopy.cliff, IIDO.IIDO__Invalid("Invalid cliff"));
         }
 
-        if (periodsCopy.releaseSchedule != IIDO.ReleaseSchedule.None) {
-            require(
-                _periods.releaseSchedule != IIDO.ReleaseSchedule.None,
-                IIDO.IIDO__Invalid("Release schedule cannot be None")
-            );
-        }
-
         periods = _periods;
         emit IIDO.PeriodsSet(_periods);
     }
@@ -633,21 +626,8 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
     }
 
     function previewClaimableTokens(address wallet) public view returns (uint256) {
-        return _calculateClaimableTokens(wallet).intoUint256();
-    }
-
-    /**
-     * @notice Converts the release type enum to the corresponding number of seconds.
-     * @dev This function is a pure function and does not interact with storage or make external calls.
-     * @param _schedule The release type enum value to be converted.
-     * @return scheduleTimestamp The number of seconds corresponding to the release type.
-     */
-    function getReleaseSchedule(IIDO.ReleaseSchedule _schedule) public pure returns (uint256 scheduleTimestamp) {
-        if (_schedule == IIDO.ReleaseSchedule.Minute) scheduleTimestamp = 1 minutes;
-        else if (_schedule == IIDO.ReleaseSchedule.Day) scheduleTimestamp = 1 days;
-        else if (_schedule == IIDO.ReleaseSchedule.Week) scheduleTimestamp = 7 days;
-        else if (_schedule == IIDO.ReleaseSchedule.Month) scheduleTimestamp = 30 days;
-        else if (_schedule == IIDO.ReleaseSchedule.Year) scheduleTimestamp = 365 days;
+        // return _calculateClaimableTokens(wallet).intoUint256();
+        return _calculateVestedByWallet(wallet).intoUint256();
     }
 
     /**
@@ -744,40 +724,47 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         if (periodsCopy.vestingAt == 0) return zero; // Vesting period not defined
         if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
 
-        // IN VESTING PERIOD ------------------------------------------------------------
-
+        /// IN VESTING PERIOD ======================================================
         UD60x18 maxOfTokens = _tokenAmountByParticipation(raised);
         UD60x18 tgeAmount = maxOfTokens.mul(ud(amounts.tgeReleasePercent)); // use ud because percent is already in 18 decimals
-
         UD60x18 maxOfTokensForVesting = maxOfTokens.sub(tgeAmount);
 
-        /// ---- Cliff vesting
+        uint256 _cliffEndsAt = cliffEndsAt();
+
+        /// IN CLIFF PERIOD ========================================================
+        /// Only TGE is unlocked before cliff ends =================================
+        if (block.timestamp <= _cliffEndsAt) return tgeAmount;
+
+        /// CLIFF VESTING  =========================================================
+
+        /// Cliff ended, vest all tokens for cliff vesting
         if (vestingType == IIDO.VestingType.CliffVesting) return maxOfTokens;
 
-        /// ---- Linear vesting
+        /// LINEAR VESTING =========================================================
         uint256 _vestingEndsAt = vestingEndsAt();
 
+        /// Vest only TGE amount at first second of vesting period =================
         if (block.timestamp == periodsCopy.vestingAt) return tgeAmount;
 
-        // All tokens were vested
-        if (block.timestamp >= _vestingEndsAt) return maxOfTokens;
+        /// All tokens were vested =================================================
+        if (block.timestamp > _vestingEndsAt) return maxOfTokens;
 
-        UD60x18 totalVestingTime = convert(periodsCopy.vestingDuration);
-        UD60x18 elapsedTime = convert(_vestingEndsAt - block.timestamp);
-        UD60x18 vestingProgress = elapsedTime.div(totalVestingTime);
-        UD60x18 tokensPerSec = maxOfTokensForVesting.div(totalVestingTime);
-        UD60x18 vestedAmount = tgeAmount.add(tokensPerSec.mul(vestingProgress));
+        /// Vested amount in period ================================================
+        UD60x18 duration = convert(periodsCopy.vestingDuration);
+        UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
+        UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
+        UD60x18 vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
 
         return vestedAmount;
     }
 
     /**
-     * @notice Calculates the amount of tokens available to be claimed by a specific wallet.
+     * @notice Calculates the amount of tokens available for a specific wallet.
      * @dev This function calculates the amount of tokens a participant can claim at the moment.
      * @param wallet The participant's wallet address (address).
-     * @return The claimable tokens amount (UD60x18).
+     * @return The available tokens amount (UD60x18).
      */
-    function _calculateClaimableTokens(address wallet) private view returns (UD60x18) {
+    function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
         UD60x18 zero = convert(0);
         IIDO.Periods memory periodsCopy = periods;
 
@@ -785,34 +772,37 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
         if (allocations[wallet] == 0) return zero; // Wallet has no allocations
 
-        UD60x18 total = _tokenAmountByParticipation(allocations[wallet]);
+        UD60x18 max = _tokenAmountByParticipation(allocations[wallet]);
         UD60x18 claimed = ud(tokensClaimed[wallet]);
 
         /// User already claimed all tokens vested
-        if (claimed == total) return zero;
+        if (claimed == max) return zero;
 
         uint256 _cliffEndsAt = cliffEndsAt();
-
-        bool claimedTGE = hasClaimedTGE[wallet];
+        bool isTgeClaimed = hasClaimedTGE[wallet];
 
         /// Only TGE is vested during cliff period
-        if (block.timestamp < _cliffEndsAt) {
-            return claimedTGE ? zero : _calculateTGETokens(wallet);
-        }
+        if (block.timestamp <= _cliffEndsAt) return isTgeClaimed ? zero : _calculateTGETokens(wallet);
 
-        UD60x18 tgeBalance = claimedTGE ? zero : _calculateTGETokens(wallet);
-        UD60x18 balance = total.sub(claimed).sub(tgeBalance);
+        UD60x18 balance = max.sub(claimed);
 
         /// All tokens were vested -> return all balance remaining
         if (block.timestamp > vestingEndsAt()) return balance;
 
-        UD60x18 raisedInTokens = _tokenAmountByParticipation(raised); // all IDO tokens
-        UD60x18 totalVested = _calculateVestedTokens(); // all vested tokens
+        /// BETWEEN CLIFF ENDING AND VESTING ENDING ======================================================
 
-        UD60x18 vestedRatio = totalVested.div(raisedInTokens); // ratio of vested tokens
-        UD60x18 available = balance.mul(vestedRatio); // available tokens to claim
-        UD60x18 claimable = available.add(tgeBalance); // available (>= 0) + tgeBalance (>= 0)
+        /// CLIFF VESTING
+        if (vestingType == IIDO.VestingType.CliffVesting) return balance;
 
-        return claimable;
+        /// LINEAR VESTING
+        UD60x18 total = _tokenAmountByParticipation(raised);
+        UD60x18 vested = _calculateVestedTokens();
+        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
+        UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
+        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
+        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
+        UD60x18 walletClaimable = walletVested.sub(claimed);
+
+        return walletClaimable;
     }
 }

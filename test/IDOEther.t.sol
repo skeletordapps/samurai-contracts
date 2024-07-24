@@ -32,7 +32,6 @@ contract IDOEtherTest is Test {
     uint256 vestingDuration;
     uint256 vestingAt;
     uint256 cliff;
-    IIDO.ReleaseSchedule releaseSchedule;
     uint256 tokenPrice;
     uint256 maxAllocations;
     uint256 tgeReleasePercent;
@@ -64,8 +63,7 @@ contract IDOEtherTest is Test {
         for (uint256 i = 0; i < numberOfRanges; i++) {
             ranges.push(ido.getRange(i));
         }
-        (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff, releaseSchedule)
-        = ido.periods();
+        (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff) = ido.periods();
     }
 
     function testConstructor() public {
@@ -415,8 +413,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: vestingDuration,
             vestingAt: vestingAt,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -436,8 +433,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: vestingDuration,
             vestingAt: vestingAt,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -457,8 +453,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: 0,
             vestingDuration: vestingDuration,
             vestingAt: vestingAt,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -472,7 +467,7 @@ contract IDOEtherTest is Test {
     }
 
     function testCanSetPeriods() external {
-        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,,) = ido.periods();
+        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,) = ido.periods();
 
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: _registrationAt,
@@ -480,8 +475,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: _participationEndsAt,
             vestingDuration: 30 days * 8,
             vestingAt: _participationEndsAt + 10 days,
-            cliff: 30 days,
-            releaseSchedule: IIDO.ReleaseSchedule.Minute
+            cliff: 30 days
         });
 
         vm.startPrank(owner);
@@ -494,8 +488,7 @@ contract IDOEtherTest is Test {
             uint256 _newParticipationEndsAt,
             uint256 _newVestingDuration,
             uint256 _newVestingAt,
-            uint256 _newCliff,
-            IIDO.ReleaseSchedule _newReleaseSchedule
+            uint256 _newCliff
         ) = ido.periods();
 
         assertEq(_newRegistrationAt, expectedPeriods.registrationAt);
@@ -504,16 +497,10 @@ contract IDOEtherTest is Test {
         assertEq(_newVestingDuration, expectedPeriods.vestingDuration);
         assertEq(_newVestingAt, expectedPeriods.vestingAt);
         assertEq(_newCliff, expectedPeriods.cliff);
-        assertEq(uint256(_newReleaseSchedule), uint256(expectedPeriods.releaseSchedule));
     }
 
-    modifier periodsSet(
-        uint256 newVestingDuration,
-        uint256 newVestingAt,
-        uint256 cliffDuration,
-        IIDO.ReleaseSchedule newReleaseSchedule
-    ) {
-        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,,) = ido.periods();
+    modifier periodsSet(uint256 newVestingDuration, uint256 newVestingAt, uint256 cliffDuration) {
+        (uint256 _registrationAt, uint256 _participationStartsAt, uint256 _participationEndsAt,,,) = ido.periods();
 
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: _registrationAt,
@@ -521,8 +508,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: _participationEndsAt,
             vestingDuration: newVestingDuration,
             vestingAt: newVestingAt,
-            cliff: cliffDuration,
-            releaseSchedule: newReleaseSchedule
+            cliff: cliffDuration
         });
 
         vm.startPrank(owner);
@@ -531,8 +517,7 @@ contract IDOEtherTest is Test {
         ido.setPeriods(expectedPeriods);
         vm.stopPrank();
 
-        (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff, releaseSchedule)
-        = ido.periods();
+        (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff) = ido.periods();
 
         _;
     }
@@ -545,8 +530,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: 30 days * 8,
             vestingAt: participationEndsAt - 2 hours,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -562,7 +546,7 @@ contract IDOEtherTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenStoredVestingAtIsSetAndNewValueIsUnderParticipationEnd()
         external
-        periodsSet(30 days * 8, participationEndsAt + 1 days, 0, releaseSchedule)
+        periodsSet(30 days * 8, participationEndsAt + 1 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -570,8 +554,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: 30 days * 8,
             vestingAt: participationEndsAt - 2 hours,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -587,7 +570,7 @@ contract IDOEtherTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 0, releaseSchedule)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -595,8 +578,7 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: 30 days * 8,
             vestingAt: participationEndsAt + 1 days,
-            cliff: cliff,
-            releaseSchedule: releaseSchedule
+            cliff: cliff
         });
 
         vm.startPrank(owner);
@@ -611,7 +593,7 @@ contract IDOEtherTest is Test {
 
     function testRevertSetPeriodsWhenCliffIsUnderStoredCliff()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, releaseSchedule)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -619,32 +601,11 @@ contract IDOEtherTest is Test {
             participationEndsAt: participationEndsAt,
             vestingDuration: 30 days * 8,
             vestingAt: vestingAt,
-            cliff: 0,
-            releaseSchedule: releaseSchedule
+            cliff: 0
         });
 
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Invalid cliff"));
-        ido.setPeriods(expectedPeriods);
-        vm.stopPrank();
-    }
-
-    function testRevertSetPeriodsWhenReleaseScheduleIsInvalid()
-        external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
-    {
-        IIDO.Periods memory expectedPeriods = IIDO.Periods({
-            registrationAt: registrationAt,
-            participationStartsAt: participationStartsAt,
-            participationEndsAt: participationEndsAt,
-            vestingDuration: 30 days * 8,
-            vestingAt: vestingAt,
-            cliff: cliff,
-            releaseSchedule: IIDO.ReleaseSchedule.None
-        });
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Invalid.selector, "Release schedule cannot be None"));
         ido.setPeriods(expectedPeriods);
         vm.stopPrank();
     }
@@ -879,7 +840,7 @@ contract IDOEtherTest is Test {
 
     function testMustReturnZeroWhenWalletHasNoAllocation()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
     {
         vm.warp(vestingAt);
 
@@ -894,7 +855,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
     {
         vm.warp(vestingAt + 1 days);
@@ -914,7 +875,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -969,7 +930,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
         tgeClaimed(walletInTiers)
@@ -987,7 +948,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1005,7 +966,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1024,7 +985,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1051,7 +1012,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1080,7 +1041,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1119,24 +1080,20 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
         vm.warp(vestingAt + cliff + 1 hours);
 
         uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
-        uint256 travelTimestamp = 14 days;
 
         while (claimableAmount > 0) {
             vm.startPrank(walletInTiers);
             ido.claim();
             vm.stopPrank();
 
-            if (travelTimestamp == 14 days) travelTimestamp = 15 days;
-            if (travelTimestamp == 15 days) travelTimestamp = 16 days;
-
-            vm.warp(block.timestamp + travelTimestamp);
+            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 15 days);
             claimableAmount = ido.previewClaimableTokens(walletInTiers);
         }
 
@@ -1166,11 +1123,11 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
         idoTokenSet
         idoTokenFilled(false)
     {
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,,) = ido.periods();
+        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
         vm.warp(_vestingAt + _vestingDuration - 1 days);
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Vesting is ongoing"));
@@ -1185,11 +1142,11 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
         idoTokenSet
         idoTokenFilled(false)
     {
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,,) = ido.periods();
+        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
         vm.warp(_vestingAt + _vestingDuration + 1 hours);
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet has no allocation"));
@@ -1207,12 +1164,12 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
         idoTokenSet
         idoTokenFilled(false)
     {
         uint256 expectedAmountToWithdraw = ido.tokenAmountByParticipation(ido.allocations(walletInTiers));
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,,) = ido.periods();
+        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
         vm.warp(_vestingAt + _vestingDuration + 1 hours);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
@@ -1240,7 +1197,7 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days, IIDO.ReleaseSchedule.Minute)
+        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
         idoTokenSet
         idoTokenFilled(false)
     {

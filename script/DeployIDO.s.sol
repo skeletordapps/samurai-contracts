@@ -51,8 +51,7 @@ contract DeployIDO is Script {
             participationEndsAt: rightNow + 2 days, // 48 hours
             vestingDuration: 0,
             vestingAt: 0,
-            cliff: 0,
-            releaseSchedule: IIDO.ReleaseSchedule.None
+            cliff: 0
         });
 
         IIDO.Refund memory refund = IIDO.Refund({active: refundable, feePercent: refundPercent, period: refundPeriod});
@@ -105,8 +104,7 @@ contract DeployIDO is Script {
             participationEndsAt: rightNow + 2 days, // 48 hours
             vestingDuration: 0,
             vestingAt: 0,
-            cliff: 0,
-            releaseSchedule: IIDO.ReleaseSchedule.None
+            cliff: 0
         });
 
         address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
@@ -150,6 +148,7 @@ contract DeployIDO is Script {
         bool _usingLinkedWallet,
         uint256 _price,
         uint256 _totalMax,
+        uint256 _tgePercentage,
         bool _refundable,
         uint256 _refundPercent,
         uint256 _refundPeriod
@@ -180,7 +179,7 @@ contract DeployIDO is Script {
         }
 
         IIDO.Amounts memory amounts =
-            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
+            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: _tgePercentage});
 
         uint256 rightNow = block.timestamp;
 
@@ -190,8 +189,7 @@ contract DeployIDO is Script {
             participationEndsAt: rightNow + 2 days, // 48 hours
             vestingDuration: 0,
             vestingAt: 0,
-            cliff: 0,
-            releaseSchedule: IIDO.ReleaseSchedule.None
+            cliff: 0
         });
 
         address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
