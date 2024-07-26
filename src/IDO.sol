@@ -735,27 +735,46 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         /// Only TGE is unlocked before cliff ends =================================
         if (block.timestamp <= _cliffEndsAt) return tgeAmount;
 
-        /// CLIFF VESTING  =========================================================
+        if (vestingType == IIDO.VestingType.CliffVesting) {
+            /// CLIFF VESTING  =====================================================
 
-        /// Cliff ended, vest all tokens for cliff vesting
-        if (vestingType == IIDO.VestingType.CliffVesting) return maxOfTokens;
+            return maxOfTokens;
+        } else {
+            uint256 _vestingEndsAt = vestingEndsAt();
 
-        /// LINEAR VESTING =========================================================
-        uint256 _vestingEndsAt = vestingEndsAt();
+            /// Vest only TGE amount at first second of vesting period =============
+            if (block.timestamp == periodsCopy.vestingAt) return tgeAmount;
 
-        /// Vest only TGE amount at first second of vesting period =================
-        if (block.timestamp == periodsCopy.vestingAt) return tgeAmount;
+            /// All tokens were vested =============================================
+            if (block.timestamp > _vestingEndsAt) return maxOfTokens;
 
-        /// All tokens were vested =================================================
-        if (block.timestamp > _vestingEndsAt) return maxOfTokens;
+            UD60x18 vestedAmount;
 
-        /// Vested amount in period ================================================
-        UD60x18 duration = convert(periodsCopy.vestingDuration);
-        UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
-        UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
-        UD60x18 vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
+            if (vestingType == IIDO.VestingType.LinearVesting) {
+                /// LINEAR VESTING =====================================================
 
-        return vestedAmount;
+                UD60x18 duration = convert(periodsCopy.vestingDuration);
+                UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
+                UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
+                vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
+            } else if (vestingType == IIDO.VestingType.PeriodicVesting) {
+                /// PERIODC VESTING =====================================================
+
+                // console.log("WILL CALC VESTED TOKENS ===========");
+                UD60x18 totalMonths = convert(calculateMonths(_cliffEndsAt, _cliffEndsAt + periodsCopy.vestingDuration));
+                // console.log(_cliffEndsAt, periodsCopy.vestingDuration, totalMonths.intoUint256());
+                UD60x18 elapsedMonths = convert(calculateMonths(_cliffEndsAt, block.timestamp));
+                // console.log("elapsedMonths", elapsedMonths.intoUint256());
+
+                UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
+                // console.log("tokensPerMonth", tokensPerMonth.intoUint256());
+
+                UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
+                vestedAmount = tgeAmount.add(vested);
+            }
+
+            return vestedAmount;
+        }
     }
 
     /**
@@ -794,15 +813,45 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         /// CLIFF VESTING
         if (vestingType == IIDO.VestingType.CliffVesting) return balance;
 
-        /// LINEAR VESTING
+        // if (vestingType == IIDO.VestingType.LinearVesting) {
+        /// LINEAR VESTING & PERIODIC VESTING
         UD60x18 total = _tokenAmountByParticipation(raised);
+        // console.log("total", total.intoUint256());
         UD60x18 vested = _calculateVestedTokens();
+        // console.log("vested", vested.intoUint256());
         UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
+        // console.log("totalVestedPercentage", totalVestedPercentage.intoUint256());
         UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
+        // console.log("walletSharePercentage", walletSharePercentage.intoUint256());
         UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
+        // console.log("walletVestedPercentage", walletVestedPercentage.intoUint256());
         UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
+        // console.log("walletVested", walletVested.intoUint256());
         UD60x18 walletClaimable = walletVested.sub(claimed);
+        // console.log("walletClaimable", walletClaimable.intoUint256());
 
         return walletClaimable;
+        // } else {
+        //     console.log(" ");
+        //     console.log("Period Vesting===============");
+        //     UD60x18 total = _tokenAmountByParticipation(raised);
+        //     console.log("total", total.intoUint256());
+        //     UD60x18 vested = _calculateVestedTokens();
+        //     console.log("vested", vested.intoUint256());
+        //     console.log(" ");
+        //     return zero;
+        // }
+    }
+
+    function calculateMonths(uint256 start, uint256 end) public pure returns (uint256) {
+        uint256 months;
+        uint256 elapsed = end - start;
+
+        while (elapsed >= 30 days) {
+            months++;
+            elapsed -= 30 days;
+        }
+
+        return months;
     }
 }

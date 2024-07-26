@@ -30,8 +30,9 @@ interface IIDO {
     /// Enums
 
     enum VestingType {
+        CliffVesting,
         LinearVesting,
-        CliffVesting
+        PeriodicVesting
     }
 
     /// Structs

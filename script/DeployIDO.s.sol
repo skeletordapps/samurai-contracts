@@ -151,9 +151,10 @@ contract DeployIDO is Script {
         uint256 _tgePercentage,
         bool _refundable,
         uint256 _refundPercent,
-        uint256 _refundPeriod
+        uint256 _refundPeriod,
+        IIDO.VestingType _vestingType
     ) external returns (IDO ido) {
-        IIDO.VestingType vestingType = IIDO.VestingType.LinearVesting;
+        IIDO.VestingType vestingType = _vestingType;
         uint256 price = _price;
         uint256 totalMax = _totalMax;
         bool refundable = _refundable;
