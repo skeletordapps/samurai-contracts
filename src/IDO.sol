@@ -9,6 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IIDO} from "./interfaces/IIDO.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {console} from "forge-std/console.sol";
 
 contract IDO is Ownable, Pausable, ReentrancyGuard {
@@ -346,11 +347,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      */
     function emergencyWithdrawByWallet(address wallet) external onlyOwner nonReentrant {
         require(token != address(0), IIDO.IIDO__Unauthorized("Token not set"));
-        IIDO.Periods memory periodsCopy = periods;
-        require(
-            block.timestamp > periodsCopy.vestingAt + periodsCopy.vestingDuration,
-            IIDO.IIDO__Unauthorized("Vesting is ongoing")
-        );
+        require(block.timestamp > vestingEndsAt(), IIDO.IIDO__Unauthorized("Vesting is ongoing"));
 
         uint256 allocation = allocations[wallet];
         require(allocation > 0, IIDO.IIDO__Unauthorized("Wallet has no allocation"));
@@ -647,14 +644,15 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @return The timestamp representing the end of the cliff period (uint256).
      */
     function cliffEndsAt() public view returns (uint256) {
-        IIDO.Periods memory _periods = periods;
-        return _periods.vestingAt + _periods.cliff;
+        IIDO.Periods memory periodsCopy = periods;
+        // return _periods.vestingAt + _periods.cliff;
+        return BokkyPooBahsDateTimeLibrary.addMonths(periodsCopy.vestingAt, periodsCopy.cliff);
     }
 
     function vestingEndsAt() public view returns (uint256) {
         IIDO.Periods memory periodsCopy = periods;
-
-        return cliffEndsAt() + periodsCopy.vestingDuration;
+        // return cliffEndsAt() + periodsCopy.vestingDuration;
+        return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periodsCopy.vestingDuration);
     }
 
     /**
@@ -753,22 +751,18 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             if (vestingType == IIDO.VestingType.LinearVesting) {
                 /// LINEAR VESTING =====================================================
 
-                UD60x18 duration = convert(periodsCopy.vestingDuration);
+                UD60x18 duration = convert(BokkyPooBahsDateTimeLibrary.diffDays(_cliffEndsAt, _vestingEndsAt));
+                // UD60x18 duration = convert(periodsCopy.vestingDuration);
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
                 vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
             } else if (vestingType == IIDO.VestingType.PeriodicVesting) {
                 /// PERIODC VESTING =====================================================
 
-                // console.log("WILL CALC VESTED TOKENS ===========");
-                UD60x18 totalMonths = convert(calculateMonths(_cliffEndsAt, _cliffEndsAt + periodsCopy.vestingDuration));
-                // console.log(_cliffEndsAt, periodsCopy.vestingDuration, totalMonths.intoUint256());
-                UD60x18 elapsedMonths = convert(calculateMonths(_cliffEndsAt, block.timestamp));
-                // console.log("elapsedMonths", elapsedMonths.intoUint256());
+                UD60x18 totalMonths = convert(BokkyPooBahsDateTimeLibrary.diffMonths(_cliffEndsAt, _vestingEndsAt));
 
+                UD60x18 elapsedMonths = convert(BokkyPooBahsDateTimeLibrary.diffMonths(_cliffEndsAt, block.timestamp));
                 UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
-                // console.log("tokensPerMonth", tokensPerMonth.intoUint256());
-
                 UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
                 vestedAmount = tgeAmount.add(vested);
             }
@@ -813,45 +807,15 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         /// CLIFF VESTING
         if (vestingType == IIDO.VestingType.CliffVesting) return balance;
 
-        // if (vestingType == IIDO.VestingType.LinearVesting) {
         /// LINEAR VESTING & PERIODIC VESTING
         UD60x18 total = _tokenAmountByParticipation(raised);
-        // console.log("total", total.intoUint256());
         UD60x18 vested = _calculateVestedTokens();
-        // console.log("vested", vested.intoUint256());
         UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-        // console.log("totalVestedPercentage", totalVestedPercentage.intoUint256());
         UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
-        // console.log("walletSharePercentage", walletSharePercentage.intoUint256());
         UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-        // console.log("walletVestedPercentage", walletVestedPercentage.intoUint256());
         UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        // console.log("walletVested", walletVested.intoUint256());
         UD60x18 walletClaimable = walletVested.sub(claimed);
-        // console.log("walletClaimable", walletClaimable.intoUint256());
 
         return walletClaimable;
-        // } else {
-        //     console.log(" ");
-        //     console.log("Period Vesting===============");
-        //     UD60x18 total = _tokenAmountByParticipation(raised);
-        //     console.log("total", total.intoUint256());
-        //     UD60x18 vested = _calculateVestedTokens();
-        //     console.log("vested", vested.intoUint256());
-        //     console.log(" ");
-        //     return zero;
-        // }
-    }
-
-    function calculateMonths(uint256 start, uint256 end) public pure returns (uint256) {
-        uint256 months;
-        uint256 elapsed = end - start;
-
-        while (elapsed >= 30 days) {
-            months++;
-            elapsed -= 30 days;
-        }
-
-        return months;
     }
 }

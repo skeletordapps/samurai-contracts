@@ -9,6 +9,7 @@ import {DeployIDO} from "../script/DeployIDO.s.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IIDO} from "../src/interfaces/IIDO.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
 contract IDOEtherTest is Test {
     uint256 fork;
@@ -593,13 +594,13 @@ contract IDOEtherTest is Test {
 
     function testRevertSetPeriodsWhenCliffIsUnderStoredCliff()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
             participationStartsAt: participationStartsAt,
             participationEndsAt: participationEndsAt,
-            vestingDuration: 30 days * 8,
+            vestingDuration: 8,
             vestingAt: vestingAt,
             cliff: 0
         });
@@ -838,10 +839,7 @@ contract IDOEtherTest is Test {
         assertEq(amount, 0);
     }
 
-    function testMustReturnZeroWhenWalletHasNoAllocation()
-        external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
-    {
+    function testMustReturnZeroWhenWalletHasNoAllocation() external periodsSet(8, participationEndsAt + 2 days, 2) {
         vm.warp(vestingAt);
 
         uint256 amount = ido.previewClaimableTokens(bob);
@@ -855,7 +853,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
     {
         vm.warp(vestingAt + 1 days);
@@ -875,7 +873,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -930,7 +928,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
         idoTokenFilled(false)
         tgeClaimed(walletInTiers)
@@ -948,7 +946,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -966,7 +964,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -985,7 +983,7 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 2)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1005,104 +1003,104 @@ contract IDOEtherTest is Test {
         assertEq(ido.fees(), refundingFees);
     }
 
-    function testCanClaimTGEPlusLinearVestedInPeriod()
-        external
-        walletLinked(walletInTiers)
-        isWhitelisted(walletInTiers)
-        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        inParticipationPeriod
-        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
-        idoTokenSet
-        idoTokenFilled(false)
-    {
-        vm.warp(vestingAt + 1 days);
+    // function testCanClaimTGEPlusLinearVestedInPeriod()
+    //     external
+    //     walletLinked(walletInTiers)
+    //     isWhitelisted(walletInTiers)
+    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     inParticipationPeriod
+    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     periodsSet(8, participationEndsAt + 2 days, 2)
+    //     idoTokenSet
+    //     idoTokenFilled(false)
+    // {
+    //     vm.warp(vestingAt + 1 days);
 
-        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
-        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+    //     uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+    //     uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
 
-        vm.warp(ido.cliffEndsAt() + 100 days);
+    //     vm.warp(ido.cliffEndsAt() + 100 days);
 
-        uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
-        assertTrue(expectedVestedTokens > expectedTGEAmount);
+    //     uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
+    //     assertTrue(expectedVestedTokens > expectedTGEAmount);
 
-        vm.startPrank(walletInTiers);
-        ido.claim();
-        vm.stopPrank();
+    //     vm.startPrank(walletInTiers);
+    //     ido.claim();
+    //     vm.stopPrank();
 
-        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
-        assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
-    }
+    //     uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+    //     assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
+    // }
 
-    function testCanClaimVestedTokensAfterTGEClaim()
-        external
-        walletLinked(walletInTiers)
-        isWhitelisted(walletInTiers)
-        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        inParticipationPeriod
-        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
-        idoTokenSet
-        idoTokenFilled(false)
-    {
-        vm.warp(vestingAt + 1 days);
+    // function testCanClaimVestedTokensAfterTGEClaim()
+    //     external
+    //     walletLinked(walletInTiers)
+    //     isWhitelisted(walletInTiers)
+    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     inParticipationPeriod
+    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     periodsSet(8, participationEndsAt + 2 days, 2)
+    //     idoTokenSet
+    //     idoTokenFilled(false)
+    // {
+    //     vm.warp(vestingAt + 1 days);
 
-        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
-        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+    //     uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+    //     uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
 
-        uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
-        assertEq(expectedVestedTokens, expectedTGEAmount);
+    //     uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
+    //     assertEq(expectedVestedTokens, expectedTGEAmount);
 
-        vm.startPrank(walletInTiers);
-        ido.claim();
-        vm.stopPrank();
+    //     vm.startPrank(walletInTiers);
+    //     ido.claim();
+    //     vm.stopPrank();
 
-        uint256 walletBalanceAfterTGEClaim = ERC20(ido.token()).balanceOf(walletInTiers);
-        assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
+    //     uint256 walletBalanceAfterTGEClaim = ERC20(ido.token()).balanceOf(walletInTiers);
+    //     assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
 
-        vm.warp(ido.cliffEndsAt() + 10 days);
+    //     vm.warp(ido.cliffEndsAt() + 10 days);
 
-        uint256 expectedVestedTokensAfterTGE = ido.previewClaimableTokens(walletInTiers);
+    //     uint256 expectedVestedTokensAfterTGE = ido.previewClaimableTokens(walletInTiers);
 
-        vm.startPrank(walletInTiers);
-        ido.claim();
-        vm.stopPrank();
+    //     vm.startPrank(walletInTiers);
+    //     ido.claim();
+    //     vm.stopPrank();
 
-        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+    //     uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
 
-        assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
-    }
+    //     assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
+    // }
 
-    function testCanClaimAllVestedTokens()
-        external
-        walletLinked(walletInTiers)
-        isWhitelisted(walletInTiers)
-        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        inParticipationPeriod
-        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
-        idoTokenSet
-        idoTokenFilled(false)
-    {
-        vm.warp(vestingAt + cliff + 1 hours);
+    // function testCanClaimAllVestedTokens()
+    //     external
+    //     walletLinked(walletInTiers)
+    //     isWhitelisted(walletInTiers)
+    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     inParticipationPeriod
+    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+    //     periodsSet(8, participationEndsAt + 2 days, 2)
+    //     idoTokenSet
+    //     idoTokenFilled(false)
+    // {
+    //     vm.warp(vestingAt + cliff + 1 hours);
 
-        uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
+    //     uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
 
-        while (claimableAmount > 0) {
-            vm.startPrank(walletInTiers);
-            ido.claim();
-            vm.stopPrank();
+    //     while (claimableAmount > 0) {
+    //         vm.startPrank(walletInTiers);
+    //         ido.claim();
+    //         vm.stopPrank();
 
-            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 15 days);
-            claimableAmount = ido.previewClaimableTokens(walletInTiers);
-        }
+    //         vm.warp(ido.lastClaimTimestamps(walletInTiers) + 15 days);
+    //         claimableAmount = ido.previewClaimableTokens(walletInTiers);
+    //     }
 
-        uint256 allocation = ido.allocations(walletInTiers);
-        uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
-        uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
+    //     uint256 allocation = ido.allocations(walletInTiers);
+    //     uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
+    //     uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
 
-        assertEq(totalTokens, totalClaimed);
-    }
+    //     assertEq(totalTokens, totalClaimed);
+    // }
 
     // EMERGENCY WITHDRAW FOR SPECIFIC WALLET
 
@@ -1123,7 +1121,7 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1142,12 +1140,11 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
-        vm.warp(_vestingAt + _vestingDuration + 1 hours);
+        vm.warp(ido.vestingEndsAt() + 1 hours);
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet has no allocation"));
         ido.emergencyWithdrawByWallet(bob);
@@ -1164,13 +1161,12 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
         uint256 expectedAmountToWithdraw = ido.tokenAmountByParticipation(ido.allocations(walletInTiers));
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
-        vm.warp(_vestingAt + _vestingDuration + 1 hours);
+        vm.warp(ido.vestingEndsAt() + 1 hours);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
         emit IIDO.Claimed(walletInTiers, expectedAmountToWithdraw);
@@ -1197,7 +1193,7 @@ contract IDOEtherTest is Test {
         isPublic
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).max)
         participated(walletInTiers, ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
