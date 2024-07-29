@@ -751,8 +751,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             if (vestingType == IIDO.VestingType.LinearVesting) {
                 /// LINEAR VESTING =====================================================
 
-                UD60x18 duration = convert(BokkyPooBahsDateTimeLibrary.diffDays(_cliffEndsAt, _vestingEndsAt));
-                // UD60x18 duration = convert(periodsCopy.vestingDuration);
+                UD60x18 duration = convert(BokkyPooBahsDateTimeLibrary.diffDays(_cliffEndsAt, _vestingEndsAt) * 86400);
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
                 vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
@@ -760,7 +759,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
                 /// PERIODC VESTING =====================================================
 
                 UD60x18 totalMonths = convert(BokkyPooBahsDateTimeLibrary.diffMonths(_cliffEndsAt, _vestingEndsAt));
-
                 UD60x18 elapsedMonths = convert(BokkyPooBahsDateTimeLibrary.diffMonths(_cliffEndsAt, block.timestamp));
                 UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
                 UD60x18 vested = tokensPerMonth.mul(elapsedMonths);

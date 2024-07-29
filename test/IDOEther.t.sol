@@ -1003,104 +1003,106 @@ contract IDOEtherTest is Test {
         assertEq(ido.fees(), refundingFees);
     }
 
-    // function testCanClaimTGEPlusLinearVestedInPeriod()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     inParticipationPeriod
-    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     periodsSet(8, participationEndsAt + 2 days, 2)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    // {
-    //     vm.warp(vestingAt + 1 days);
+    function testCanClaimTGEPlusLinearVestedInPeriod()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        periodsSet(8, participationEndsAt + 2 days, 2)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(vestingAt + 1 days);
 
-    //     uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
-    //     uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
 
-    //     vm.warp(ido.cliffEndsAt() + 100 days);
+        vm.warp(ido.cliffEndsAt() + 100 days);
 
-    //     uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
-    //     assertTrue(expectedVestedTokens > expectedTGEAmount);
+        uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
+        assertTrue(expectedVestedTokens > expectedTGEAmount);
 
-    //     vm.startPrank(walletInTiers);
-    //     ido.claim();
-    //     vm.stopPrank();
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
 
-    //     uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
-    //     assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
-    // }
+        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+        assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
+    }
 
-    // function testCanClaimVestedTokensAfterTGEClaim()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     inParticipationPeriod
-    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     periodsSet(8, participationEndsAt + 2 days, 2)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    // {
-    //     vm.warp(vestingAt + 1 days);
+    function testCanClaimVestedTokensAfterTGEClaim()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        periodsSet(8, participationEndsAt + 2 days, 2)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(vestingAt + 1 days);
 
-    //     uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
-    //     uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
+        uint256 expectedTGEAmount = ido.previewTGETokens(walletInTiers);
+        uint256 walletBalance = ERC20(ido.token()).balanceOf(walletInTiers);
 
-    //     uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
-    //     assertEq(expectedVestedTokens, expectedTGEAmount);
+        uint256 expectedVestedTokens = ido.previewClaimableTokens(walletInTiers);
+        assertEq(expectedVestedTokens, expectedTGEAmount);
 
-    //     vm.startPrank(walletInTiers);
-    //     ido.claim();
-    //     vm.stopPrank();
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
 
-    //     uint256 walletBalanceAfterTGEClaim = ERC20(ido.token()).balanceOf(walletInTiers);
-    //     assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
+        uint256 walletBalanceAfterTGEClaim = ERC20(ido.token()).balanceOf(walletInTiers);
+        assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
 
-    //     vm.warp(ido.cliffEndsAt() + 10 days);
+        vm.warp(ido.cliffEndsAt() + 10 days);
 
-    //     uint256 expectedVestedTokensAfterTGE = ido.previewClaimableTokens(walletInTiers);
+        uint256 expectedVestedTokensAfterTGE = ido.previewClaimableTokens(walletInTiers);
 
-    //     vm.startPrank(walletInTiers);
-    //     ido.claim();
-    //     vm.stopPrank();
+        vm.startPrank(walletInTiers);
+        ido.claim();
+        vm.stopPrank();
 
-    //     uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
+        uint256 walletBalanceAfter = ERC20(ido.token()).balanceOf(walletInTiers);
 
-    //     assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
-    // }
+        assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
+    }
 
-    // function testCanClaimAllVestedTokens()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     inParticipationPeriod
-    //     participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     periodsSet(8, participationEndsAt + 2 days, 2)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    // {
-    //     vm.warp(vestingAt + cliff + 1 hours);
+    function testCanClaimAllVestedTokens()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        periodsSet(1, participationEndsAt + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(ido.cliffEndsAt() + 1 minutes);
 
-    //     uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
+        uint256 allocation = ido.allocations(walletInTiers);
+        uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
+        uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
+        uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
 
-    //     while (claimableAmount > 0) {
-    //         vm.startPrank(walletInTiers);
-    //         ido.claim();
-    //         vm.stopPrank();
+        while (totalClaimed < totalTokens) {
+            if (claimableAmount > 0) {
+                vm.startPrank(walletInTiers);
+                ido.claim();
+                vm.stopPrank();
+            }
 
-    //         vm.warp(ido.lastClaimTimestamps(walletInTiers) + 15 days);
-    //         claimableAmount = ido.previewClaimableTokens(walletInTiers);
-    //     }
+            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 10 days);
+            claimableAmount = ido.previewClaimableTokens(walletInTiers);
+            totalClaimed = ido.tokensClaimed(walletInTiers);
+        }
 
-    //     uint256 allocation = ido.allocations(walletInTiers);
-    //     uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
-    //     uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
-
-    //     assertEq(totalTokens, totalClaimed);
-    // }
+        assertEq(totalTokens, totalClaimed);
+    }
 
     // EMERGENCY WITHDRAW FOR SPECIFIC WALLET
 

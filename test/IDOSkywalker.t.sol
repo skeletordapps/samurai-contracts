@@ -198,25 +198,6 @@ contract IDOEtherTest is Test {
         idoTokenSet
         idoTokenFilled
     {
-        // PHASE 1
-
-        // uint256 allocationA = ido.allocations(walletA);
-        // uint256 totalOfTokensA = ido.tokenAmountByParticipation(allocationA);
-
-        // uint256 allocationB = ido.allocations(walletB);
-        // uint256 totalOfTokensB = ido.tokenAmountByParticipation(allocationB);
-
-        // uint256 allocationC = ido.allocations(walletC);
-        // uint256 totalOfTokensC = ido.tokenAmountByParticipation(allocationC);
-
-        // uint256 cliffEndsAt = ido.cliffEndsAt();
-
-        // uint256 amountClaimableA = ido.previewClaimableTokens(walletA);
-        // uint256 amountClaimableB = ido.previewClaimableTokens(walletB);
-        // uint256 amountClaimableC = ido.previewClaimableTokens(walletC);
-
-        // PHASE 2
-
         vm.warp(vestingAt);
         // TGE: August 5th, 2024 at 12 UTC - 1722859200
         // (means tokens unlock on October 5, November 5, and December 5 at 12 UTC)

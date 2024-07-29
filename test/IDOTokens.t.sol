@@ -1094,37 +1094,38 @@ contract IDOEtherTest is Test {
         assertEq(tokensClaimed, tokensBought);
     }
 
-    // function testCanClaimAllVestedTokens()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
-    //     inParticipationPeriod
-    //     participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-    //     periodsSet(8, participationEndsAt + 2 days, 1)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    // {
-    //     vm.warp(vestingAt);
+    function testCanClaimAllVestedTokens()
+        external
+        walletLinked(walletInTiers)
+        isWhitelisted(walletInTiers)
+        hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
+        inParticipationPeriod
+        participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
+        periodsSet(1, participationEndsAt + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+    {
+        vm.warp(ido.cliffEndsAt() + 1 minutes);
 
-    //     uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
+        uint256 allocation = ido.allocations(walletInTiers);
+        uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
+        uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
+        uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
 
-    //     while (claimableAmount > 0) {
-    //         vm.startPrank(walletInTiers);
-    //         ido.claim();
-    //         vm.stopPrank();
+        while (totalClaimed < totalTokens) {
+            if (claimableAmount > 0) {
+                vm.startPrank(walletInTiers);
+                ido.claim();
+                vm.stopPrank();
+            }
 
-    //         vm.warp(ido.lastClaimTimestamps(walletInTiers) + 1 days);
-    //         claimableAmount = ido.previewClaimableTokens(walletInTiers);
-    //         console.log(claimableAmount);
-    //     }
+            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 10 days);
+            claimableAmount = ido.previewClaimableTokens(walletInTiers);
+            totalClaimed = ido.tokensClaimed(walletInTiers);
+        }
 
-    //     uint256 allocation = ido.allocations(walletInTiers);
-    //     uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
-    //     uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
-
-    //     assertEq(totalTokens, totalClaimed);
-    // }
+        assertEq(totalTokens, totalClaimed);
+    }
 
     // EMERGENCY WITHDRAW FOR SPECIFIC WALLET
 
