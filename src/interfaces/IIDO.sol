@@ -21,7 +21,6 @@ interface IIDO {
     event IDOTokensFilled(address indexed wallet, uint256 amount);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
     event Refunded(address indexed wallet, uint256 amount);
-    event TGEClaimed(address indexed wallet, uint256 amountInTokens);
     event Claimed(address indexed wallet, uint256 claimedAmount);
     event ParticipationsWithdrawal(uint256 amount);
     event IDOTokenSet(address indexed token);
@@ -33,6 +32,11 @@ interface IIDO {
         CliffVesting,
         LinearVesting,
         PeriodicVesting
+    }
+
+    enum PeriodType {
+        Days,
+        Month
     }
 
     /// Structs

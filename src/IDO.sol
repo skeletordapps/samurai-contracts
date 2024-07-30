@@ -9,6 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IIDO} from "./interfaces/IIDO.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {console} from "forge-std/console.sol";
 
 contract IDO is Ownable, Pausable, ReentrancyGuard {
@@ -271,6 +272,18 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         emit IIDO.IDOTokensFilled(msg.sender, amount);
     }
 
+    /**
+     * @notice Initiates a refund for the caller.
+     * @dev Calculates the refundable amount and fee, transfers the funds to the caller,
+     *  and updates the caller's allocation to zero. Emits a `Refunded` event.
+     *
+     * Requirements:
+     *  - The caller must have a non-zero allocation.
+     *  - The contract must have sufficient funds or tokens to process the refund.
+     *
+     * Emits:
+     *  Refunded(address indexed user, uint256 amount)
+     */
     function getRefund() external nonReentrant {
         (UD60x18 _refundableAmount, UD60x18 _fee) = _calculateRefunding(msg.sender);
         uint256 refundableAmount = convert(_refundableAmount);
@@ -330,6 +343,21 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         emit IIDO.ParticipationsWithdrawal(balance);
     }
 
+    /**
+     * @notice Sets the IDO token address.
+     * @dev Only the owner can call this function. Sets the `token` address to the provided `_token` address.
+     *  Reverts if the token address is already set.
+     *
+     * Emits:
+     *  IDOTokenSet(address indexed newToken)
+     *
+     * Requirements:
+     *  - The caller must be the owner.
+     *  - The token address must be zero.
+     *
+     * Parameters:
+     *  _token: The new IDO token address.
+     */
     function setIDOToken(address _token) external onlyOwner nonReentrant {
         require(token == address(0), IIDO.IIDO__Unauthorized("Token already set"));
         token = _token;
@@ -346,11 +374,7 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      */
     function emergencyWithdrawByWallet(address wallet) external onlyOwner nonReentrant {
         require(token != address(0), IIDO.IIDO__Unauthorized("Token not set"));
-        IIDO.Periods memory periodsCopy = periods;
-        require(
-            block.timestamp > periodsCopy.vestingAt + periodsCopy.vestingDuration,
-            IIDO.IIDO__Unauthorized("Vesting is ongoing")
-        );
+        require(block.timestamp > vestingEndsAt(), IIDO.IIDO__Unauthorized("Vesting is ongoing"));
 
         uint256 allocation = allocations[wallet];
         require(allocation > 0, IIDO.IIDO__Unauthorized("Wallet has no allocation"));
@@ -547,6 +571,19 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         emit IIDO.PeriodsSet(_periods);
     }
 
+    /**
+     * @notice Sets the refund configuration.
+     * @dev Only the owner can call this function. Sets the `refund` struct to the provided `_refund` struct.
+     *
+     * Emits:
+     *  RefundSet(IIDO.Refund indexed newRefund)
+     *
+     * Requirements:
+     *  - The caller must be the owner.
+     *
+     * Parameters:
+     *  _refund: The new refund configuration.
+     */
     function setRefund(IIDO.Refund memory _refund) public onlyOwner nonReentrant {
         refund = _refund;
         emit IIDO.RefundSet(_refund);
@@ -606,6 +643,14 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         return ranges[index];
     }
 
+    /**
+     * @notice Previews the refundable amount and fee for a given wallet.
+     * @dev Calculates the refundable amount and fee for the specified `wallet` address without modifying state.
+     *
+     * @param wallet The wallet address to calculate the refund for.
+     * @return refundableAmount The calculated refundable amount in wei.
+     * @return fee The calculated fee in wei.
+     */
     function previewRefunding(address wallet) public view returns (uint256, uint256) {
         (UD60x18 _refundableAmount, UD60x18 _fee) = _calculateRefunding(wallet);
         return (convert(_refundableAmount), convert(_fee));
@@ -621,10 +666,23 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         return _calculateTGETokens(wallet).intoUint256();
     }
 
+    /**
+     * @notice Previews the total amount of vested tokens.
+     * @dev Calculates the total amount of vested tokens based on the current block timestamp.
+     *
+     * @return vestedTokens The total amount of vested tokens.
+     */
     function previewVestedTokens() public view returns (uint256) {
         return _calculateVestedTokens().intoUint256();
     }
 
+    /**
+     * @notice Previews the claimable tokens for a given wallet.
+     * @dev Calculates the total amount of vested tokens for the specified wallet.
+     *
+     * @param wallet The wallet address to calculate claimable tokens for.
+     * @return claimableTokens The total amount of claimable tokens for the wallet.
+     */
     function previewClaimableTokens(address wallet) public view returns (uint256) {
         // return _calculateClaimableTokens(wallet).intoUint256();
         return _calculateVestedByWallet(wallet).intoUint256();
@@ -647,14 +705,21 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @return The timestamp representing the end of the cliff period (uint256).
      */
     function cliffEndsAt() public view returns (uint256) {
-        IIDO.Periods memory _periods = periods;
-        return _periods.vestingAt + _periods.cliff;
+        IIDO.Periods memory periodsCopy = periods;
+        // return _periods.vestingAt + _periods.cliff;
+        return BokkyPooBahsDateTimeLibrary.addMonths(periodsCopy.vestingAt, periodsCopy.cliff);
     }
 
+    /**
+     * @notice Returns the timestamp when vesting ends.
+     * @dev Calculates the vesting end timestamp by adding the vesting duration to the cliff end timestamp.
+     *
+     * @return The timestamp when vesting ends.
+     */
     function vestingEndsAt() public view returns (uint256) {
         IIDO.Periods memory periodsCopy = periods;
-
-        return cliffEndsAt() + periodsCopy.vestingDuration;
+        // return cliffEndsAt() + periodsCopy.vestingDuration;
+        return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periodsCopy.vestingDuration);
     }
 
     /**
@@ -751,24 +816,19 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
             UD60x18 vestedAmount;
 
             if (vestingType == IIDO.VestingType.LinearVesting) {
-                /// LINEAR VESTING =====================================================
+                /// LINEAR VESTING =================================================
 
-                UD60x18 duration = convert(periodsCopy.vestingDuration);
+                UD60x18 duration = convert(getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IIDO.PeriodType.Days));
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
                 vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
             } else if (vestingType == IIDO.VestingType.PeriodicVesting) {
-                /// PERIODC VESTING =====================================================
+                /// PERIODC VESTING ================================================
 
-                // console.log("WILL CALC VESTED TOKENS ===========");
-                UD60x18 totalMonths = convert(calculateMonths(_cliffEndsAt, _cliffEndsAt + periodsCopy.vestingDuration));
-                // console.log(_cliffEndsAt, periodsCopy.vestingDuration, totalMonths.intoUint256());
-                UD60x18 elapsedMonths = convert(calculateMonths(_cliffEndsAt, block.timestamp));
-                // console.log("elapsedMonths", elapsedMonths.intoUint256());
-
+                UD60x18 totalMonths = convert(getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IIDO.PeriodType.Month));
+                UD60x18 elapsedMonths =
+                    convert(getDiffByPeriodType(_cliffEndsAt, block.timestamp, IIDO.PeriodType.Month));
                 UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
-                // console.log("tokensPerMonth", tokensPerMonth.intoUint256());
-
                 UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
                 vestedAmount = tgeAmount.add(vested);
             }
@@ -808,50 +868,44 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         /// All tokens were vested -> return all balance remaining
         if (block.timestamp > vestingEndsAt()) return balance;
 
-        /// BETWEEN CLIFF ENDING AND VESTING ENDING ======================================================
+        /// CALCS  ================================================
 
         /// CLIFF VESTING
         if (vestingType == IIDO.VestingType.CliffVesting) return balance;
 
-        // if (vestingType == IIDO.VestingType.LinearVesting) {
         /// LINEAR VESTING & PERIODIC VESTING
         UD60x18 total = _tokenAmountByParticipation(raised);
-        // console.log("total", total.intoUint256());
         UD60x18 vested = _calculateVestedTokens();
-        // console.log("vested", vested.intoUint256());
         UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-        // console.log("totalVestedPercentage", totalVestedPercentage.intoUint256());
         UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
-        // console.log("walletSharePercentage", walletSharePercentage.intoUint256());
         UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-        // console.log("walletVestedPercentage", walletVestedPercentage.intoUint256());
         UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        // console.log("walletVested", walletVested.intoUint256());
         UD60x18 walletClaimable = walletVested.sub(claimed);
-        // console.log("walletClaimable", walletClaimable.intoUint256());
 
         return walletClaimable;
-        // } else {
-        //     console.log(" ");
-        //     console.log("Period Vesting===============");
-        //     UD60x18 total = _tokenAmountByParticipation(raised);
-        //     console.log("total", total.intoUint256());
-        //     UD60x18 vested = _calculateVestedTokens();
-        //     console.log("vested", vested.intoUint256());
-        //     console.log(" ");
-        //     return zero;
-        // }
     }
 
-    function calculateMonths(uint256 start, uint256 end) public pure returns (uint256) {
-        uint256 months;
-        uint256 elapsed = end - start;
-
-        while (elapsed >= 30 days) {
-            months++;
-            elapsed -= 30 days;
+    /**
+     * @dev Calculates the time difference between two timestamps based on a given period type.
+     *
+     * @param start The start timestamp.
+     * @param end The end timestamp.
+     * @param periodType The period type (days or months).
+     * @return The calculated time difference in seconds (for days) or months.
+     */
+    function getDiffByPeriodType(uint256 start, uint256 end, IIDO.PeriodType periodType)
+        private
+        pure
+        returns (uint256)
+    {
+        if (periodType == IIDO.PeriodType.Days) {
+            // return number of days times seconds per day
+            // eg: 2 * 86400 = number of days in secondss
+            return BokkyPooBahsDateTimeLibrary.diffDays(start, end) * 86400;
         }
 
-        return months;
+        // return number of months
+        // eg 2 or 8
+        return BokkyPooBahsDateTimeLibrary.diffMonths(start, end);
     }
 }

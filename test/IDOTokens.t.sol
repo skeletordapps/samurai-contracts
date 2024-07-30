@@ -9,6 +9,7 @@ import {DeployIDO} from "../script/DeployIDO.s.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IIDO} from "../src/interfaces/IIDO.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
 contract IDOEtherTest is Test {
     uint256 fork;
@@ -1100,26 +1101,28 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(1, participationEndsAt + 2 days, 1)
         idoTokenSet
         idoTokenFilled(false)
     {
-        vm.warp(vestingAt);
-
-        uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
-
-        while (claimableAmount > 0) {
-            vm.startPrank(walletInTiers);
-            ido.claim();
-            vm.stopPrank();
-
-            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 15 days);
-            claimableAmount = ido.previewClaimableTokens(walletInTiers);
-        }
+        vm.warp(ido.cliffEndsAt() + 1 minutes);
 
         uint256 allocation = ido.allocations(walletInTiers);
         uint256 totalTokens = ido.tokenAmountByParticipation(allocation);
         uint256 totalClaimed = ido.tokensClaimed(walletInTiers);
+        uint256 claimableAmount = ido.previewClaimableTokens(walletInTiers);
+
+        while (totalClaimed < totalTokens) {
+            if (claimableAmount > 0) {
+                vm.startPrank(walletInTiers);
+                ido.claim();
+                vm.stopPrank();
+            }
+
+            vm.warp(ido.lastClaimTimestamps(walletInTiers) + 10 days);
+            claimableAmount = ido.previewClaimableTokens(walletInTiers);
+            totalClaimed = ido.tokensClaimed(walletInTiers);
+        }
 
         assertEq(totalTokens, totalClaimed);
     }
@@ -1147,7 +1150,7 @@ contract IDOEtherTest is Test {
             acceptedToken,
             ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
         )
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1159,6 +1162,7 @@ contract IDOEtherTest is Test {
         vm.stopPrank();
     }
 
+    /// FIXING
     function testRevertEmergencyWithdrawByWalletWhenHasNoAllocation()
         external
         walletLinked(walletInTiers)
@@ -1166,12 +1170,11 @@ contract IDOEtherTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
-        vm.warp(_vestingAt + _vestingDuration + 1 hours);
+        vm.warp(ido.vestingEndsAt() + 1 hours);
         vm.startPrank(owner);
         vm.expectRevert(abi.encodeWithSelector(IIDO.IIDO__Unauthorized.selector, "Wallet has no allocation"));
         ido.emergencyWithdrawByWallet(bob);
@@ -1192,13 +1195,12 @@ contract IDOEtherTest is Test {
             acceptedToken,
             ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
         )
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {
         uint256 expectedAmountToWithdraw = ido.tokenAmountByParticipation(ido.allocations(walletInTiers));
-        (,,, uint256 _vestingDuration, uint256 _vestingAt,) = ido.periods();
-        vm.warp(_vestingAt + _vestingDuration + 1 hours);
+        vm.warp(ido.vestingEndsAt() + 1 hours);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
         emit IIDO.Claimed(walletInTiers, expectedAmountToWithdraw);
@@ -1229,7 +1231,7 @@ contract IDOEtherTest is Test {
             acceptedToken,
             ido.getWalletRange(walletInTiers).max - ido.getWalletRange(walletInTiers).min
         )
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 100 days)
+        periodsSet(8, participationEndsAt + 2 days, 8)
         idoTokenSet
         idoTokenFilled(false)
     {

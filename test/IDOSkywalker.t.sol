@@ -9,6 +9,7 @@ import {DeployIDO} from "../script/DeployIDO.s.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IIDO} from "../src/interfaces/IIDO.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
 // Project SKYWALKER ($SKR): 30% at TGE, 1 month cliff, MONTHLY vesting for three months (33.33% unlocked each month)
 
@@ -193,33 +194,14 @@ contract IDOEtherTest is Test {
         participated(walletB, acceptedToken, 1_000e6)
         participated(walletC, acceptedToken, 1_000e6)
         isPublic
-        periodsSet(30 days * 3, 1722859200, 30 days) // 3 months vesting, 1 month cliff
+        periodsSet(3, 1722859200, 1) // 3 months vesting, 1 month cliff
         idoTokenSet
         idoTokenFilled
     {
-        // PHASE 1
-
-        // uint256 allocationA = ido.allocations(walletA);
-        // uint256 totalOfTokensA = ido.tokenAmountByParticipation(allocationA);
-
-        // uint256 allocationB = ido.allocations(walletB);
-        // uint256 totalOfTokensB = ido.tokenAmountByParticipation(allocationB);
-
-        // uint256 allocationC = ido.allocations(walletC);
-        // uint256 totalOfTokensC = ido.tokenAmountByParticipation(allocationC);
-
-        // uint256 cliffEndsAt = ido.cliffEndsAt();
-
-        // uint256 amountClaimableA = ido.previewClaimableTokens(walletA);
-        // uint256 amountClaimableB = ido.previewClaimableTokens(walletB);
-        // uint256 amountClaimableC = ido.previewClaimableTokens(walletC);
-
-        // PHASE 2
-
         vm.warp(vestingAt);
         // TGE: August 5th, 2024 at 12 UTC - 1722859200
         // (means tokens unlock on October 5, November 5, and December 5 at 12 UTC)
-        console.log("TGE: August 5th, 2024 at 12 UTC - ", block.timestamp);
+        console.log("TGE: August 5, 2024 12 UTC - ", block.timestamp);
         console.log(" ");
 
         vm.startPrank(walletB);
@@ -246,15 +228,15 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
         uint256 cliffEndsAt = ido.cliffEndsAt();
-        console.log("Cliff started and goes until - September 4, 2024 12 UTC ", cliffEndsAt);
+        console.log("Cliff started and goes until - Thursday, September 5, 2024 12 ", cliffEndsAt);
         console.log(" ");
 
         // User C: Claimed TGE unlock and claimed tokens on October 5 - 1728129600 and November 5 - 1730808000
 
         vm.warp(1728129600);
-        console.log(ido.calculateMonths(vestingAt, block.timestamp), "months later after TGE");
-        console.log(ido.calculateMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: October 5th, 2024 - ", block.timestamp);
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
+        console.log("Today's date: Saturday, October 5, 2024 12 UTC - ", block.timestamp);
         vm.startPrank(walletC);
         ido.claim();
         vm.stopPrank();
@@ -268,9 +250,9 @@ contract IDOEtherTest is Test {
         console.log(" ");
 
         vm.warp(1730808000);
-        console.log(ido.calculateMonths(vestingAt, block.timestamp), "months later after TGE");
-        console.log(ido.calculateMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: November 5th, 2024 - ", block.timestamp);
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
+        console.log("Today's date: Tuesday, November 5, 2024 12 UTC - ", block.timestamp);
         vm.startPrank(walletC);
         ido.claim();
         vm.stopPrank();
@@ -285,9 +267,9 @@ contract IDOEtherTest is Test {
 
         // Today's date: November 10th, 2024 - 1731240000
         vm.warp(1731240000);
-        console.log(ido.calculateMonths(vestingAt, block.timestamp), "months later after TGE");
-        console.log(ido.calculateMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: November 10th, 2024 - ", block.timestamp);
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
+        console.log("Today's date: Sunday, November 10, 2024 12 UTC - ", block.timestamp);
         console.log(" ");
 
         console.log("User A: Has not claimed any tokens yet.");
@@ -317,11 +299,10 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
 
-        // Today's date: November 10th, 2024 - 1731240000
         vm.warp(ido.vestingEndsAt() + 1 days);
-        console.log(ido.calculateMonths(vestingAt, block.timestamp), "months later after TGE");
-        console.log(ido.calculateMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: December 4, 2024 12 UTC - ", block.timestamp);
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
+        console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
+        console.log("Today's date: Friday, December 6, 2024 12 UTC - ", block.timestamp);
         console.log(" ");
 
         console.log("User A: Has not claimed any tokens yet.");
@@ -351,4 +332,20 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
     }
+
+    // function testCheckMonthUsingLib() public {
+    //     uint256 timestamp = 1722859200;
+    //     console.log(BokkyPooBahsDateTimeLibrary.getDay(timestamp));
+    //     vm.warp(timestamp);
+
+    //     uint256 month = BokkyPooBahsDateTimeLibrary.getMonth(block.timestamp);
+    //     console.log(month);
+
+    //     uint256 daysInMonth = BokkyPooBahsDateTimeLibrary.getDaysInMonth(block.timestamp);
+    //     console.log(daysInMonth);
+
+    //     uint256 diffMonths = BokkyPooBahsDateTimeLibrary.diffMonths(1714910400, block.timestamp);
+    //     console.log(ido.cliffEndsAt(), block.timestamp);
+    //     console.log(diffMonths);
+    // }
 }
