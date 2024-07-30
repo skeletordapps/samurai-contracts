@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 
+import {IIDO} from "../interfaces/IIDO.sol";
+
 interface IFactory {
     struct InitialConfig {
-        string name;
-        string symbol;
-        string description;
+        address samuraiTiers;
+        address acceptedToken;
+        bool usingETH;
+        bool usingLinkedWallet;
+        IIDO.VestingType vestingType;
+        IIDO.Amounts amounts;
+        IIDO.Periods periods;
+        IIDO.WalletRange[] ranges;
+        IIDO.Refund refund;
     }
+
+    event IDOCreated(uint256 chainId, IFactory.InitialConfig initialConfig);
 
     // struct Tokens {
     //     address token;
