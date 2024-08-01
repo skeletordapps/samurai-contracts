@@ -1,17 +1,41 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IDO} from "./IDO.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 
-contract Factory is Ownable {
+contract Factory is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalIDOs;
     mapping(uint256 index => address idoAddress) public idos;
 
     constructor() Ownable(msg.sender) {}
 
-    function createIDO(IFactory.InitialConfig memory initialConfig) external onlyOwner returns (IDO ido) {
+    /**
+     * @dev Pauses all token transfers.
+     * Can only be called by the contract owner.
+     */
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses token transfers.
+     * Can only be called by the contract owner.
+     */
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    function createIDO(IFactory.InitialConfig memory initialConfig)
+        external
+        onlyOwner
+        whenNotPaused
+        nonReentrant
+        returns (IDO ido)
+    {
         ido = new IDO(
             initialConfig.samuraiTiers,
             initialConfig.acceptedToken,
