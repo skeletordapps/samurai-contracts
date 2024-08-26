@@ -12,12 +12,13 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 contract DeployIDO is Script {
     function run() external returns (IDO ido) {
         address samuraiTiers = 0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74;
-        address acceptedToken = vm.envAddress("BASE_USDC_ADDRESS"); // use address(0) if using ether
+        // address acceptedToken = vm.envAddress("BASE_USDC_ADDRESS"); // use address(0) if using ether
+        address acceptedToken = vm.envAddress("BASE_FUSDC_ADDRESS");
         bool usingETH = false;
-        bool usingLinkedWallet = true;
+        bool usingLinkedWallet = false;
         IIDO.VestingType vestingType = IIDO.VestingType.LinearVesting;
-        uint256 totalMax = usingETH ? 50_000 ether : 50_000e6;
-        uint256 price = usingETH ? 0.15 ether : 0.15e6;
+        uint256 totalMax = usingETH ? 100_000 ether : 100_000e6;
+        uint256 price = usingETH ? 0.15 ether : 0.008e6;
         bool refundable = true;
         uint256 refundPercent = 0.01e18;
         uint256 refundPeriod = 24 hours;
@@ -41,7 +42,7 @@ contract DeployIDO is Script {
         }
 
         IIDO.Amounts memory amounts =
-            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.08e18});
+            IIDO.Amounts({tokenPrice: price, maxAllocations: totalMax, tgeReleasePercent: 0.15e18});
 
         uint256 rightNow = block.timestamp;
 

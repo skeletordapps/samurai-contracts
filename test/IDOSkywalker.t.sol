@@ -71,9 +71,9 @@ contract IDOEtherTest is Test {
         (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff) = ido.periods();
 
         randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
-        walletA = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
-        walletB = 0xcaE8cF1e2119484D6CC3B6EFAad2242aDBDB1Ea8;
-        walletC = 0xebf2e0b82F63F4a6F9Bbf95A7523Cd2959CEC815;
+        walletA = vm.envAddress("WALLET_A");
+        walletB = vm.envAddress("WALLET_B");
+        walletC = vm.envAddress("WALLET_C");
     }
 
     modifier walletLinked(address wallet) {
@@ -194,14 +194,14 @@ contract IDOEtherTest is Test {
         participated(walletB, acceptedToken, 1_000e6)
         participated(walletC, acceptedToken, 1_000e6)
         isPublic
-        periodsSet(3, 1722859200, 1) // 3 months vesting, 1 month cliff
+        periodsSet(3, 1728129600, 1) // 3 months vesting, 1 month cliff
         idoTokenSet
         idoTokenFilled
     {
         vm.warp(vestingAt);
-        // TGE: August 5th, 2024 at 12 UTC - 1722859200
-        // (means tokens unlock on October 5, November 5, and December 5 at 12 UTC)
-        console.log("TGE: August 5, 2024 12 UTC - ", block.timestamp);
+        // TGE: October 5th, 2024 at 12 UTC - 1722859200
+        // (means tokens unlock on December 5, January 5, and January 5 at 12 UTC)
+        console.log("TGE: October 5, 2024 12 UTC - ", block.timestamp);
         console.log(" ");
 
         vm.startPrank(walletB);
@@ -228,15 +228,15 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
         uint256 cliffEndsAt = ido.cliffEndsAt();
-        console.log("Cliff started and goes until - Thursday, September 5, 2024 12 ", cliffEndsAt);
+        console.log("Cliff started and goes until - November 5, 2024 12 ", cliffEndsAt);
         console.log(" ");
 
-        // User C: Claimed TGE unlock and claimed tokens on October 5 - 1728129600 and November 5 - 1730808000
+        // User C: Claimed TGE unlock and claimed tokens on December 5 - 1733400000 and January 5 - 1736078400
 
-        vm.warp(1728129600);
+        vm.warp(1733400000);
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: Saturday, October 5, 2024 12 UTC - ", block.timestamp);
+        console.log("Today's date: Saturday, December 5, 2024 12 UTC - ", block.timestamp);
         vm.startPrank(walletC);
         ido.claim();
         vm.stopPrank();
@@ -249,10 +249,10 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
 
-        vm.warp(1730808000);
+        vm.warp(1736078400);
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: Tuesday, November 5, 2024 12 UTC - ", block.timestamp);
+        console.log("Today's date: January 5, 2025 12 UTC - ", block.timestamp);
         vm.startPrank(walletC);
         ido.claim();
         vm.stopPrank();
@@ -265,11 +265,11 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
 
-        // Today's date: November 10th, 2024 - 1731240000
-        vm.warp(1731240000);
+        // Today's date: January 10th, 2025 - 1736510400
+        vm.warp(1736510400);
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: Sunday, November 10, 2024 12 UTC - ", block.timestamp);
+        console.log("Today's date: January 10, 2025 12 UTC - ", block.timestamp);
         console.log(" ");
 
         console.log("User A: Has not claimed any tokens yet.");
@@ -302,7 +302,7 @@ contract IDOEtherTest is Test {
         vm.warp(ido.vestingEndsAt() + 1 days);
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(vestingAt, block.timestamp), "months later after TGE");
         console.log(BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, block.timestamp), "months later after CLIFF");
-        console.log("Today's date: Friday, December 6, 2024 12 UTC - ", block.timestamp);
+        console.log("Today's date: February 6, 2025 12 UTC - ", block.timestamp);
         console.log(" ");
 
         console.log("User A: Has not claimed any tokens yet.");
@@ -323,7 +323,7 @@ contract IDOEtherTest is Test {
         );
         console.log(" ");
 
-        console.log("User C: Claimed TGE unlock and claimed tokens on October 5 and November");
+        console.log("User C: Claimed TGE unlock and claimed tokens on December 5 and January");
         console.log(
             "Total Claimed - $SKR",
             ido.tokensClaimed(walletC),

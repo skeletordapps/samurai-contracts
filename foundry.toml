@@ -12,8 +12,6 @@ remappings = [
 
 [rpc_endpoints]
 base = "${BASE_RPC_URL}"
-optimism = "${OPTIMISM_RPC_URL}"
 
 [etherscan]
-base = { key = "${BASESCAN_API_KEY}" }
-optimism = { key = "${OPTIMISMSCAN_API_KEY}" }
+base_mainnet = { key = "${BASESCAN_API_KEY}", chain = 8543, url = "https://api.basescan.org/api" }

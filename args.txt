@@ -1,0 +1,38 @@
+--constructor-args $(cast abi-encode "constructor()" )
+
+
+--constructor-args $(cast abi-encode "constructor()")
+
+address,address,bool,bool,uint256,(uint256,uint256,uint256),(uint256,uint256,uint256,uint256,uint256,uint256),(string,uint256,uint256)[],(bool,uint256,uint256)
+
+"0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74" "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" false false 1 (100000,50000000000,100000) (1723291200,1723377600,1723464000,2,1723723200,1) ("Public",100000000,5000000000),("Ronin",100000000,100000000),("Gokenin,100000000,300000000),("Goshi",100000000,500000000),("Hatamoto",100000000,1000000000),("Shogun",100000000,2500000000) (false,10000,86400)
+
+
+--constructor-args $(cast abi-encode "constructor(address,address,bool,bool,uint256,(uint256,uint256,uint256),(uint256,uint256,uint256,uint256,uint256,uint256),(string,uint256,uint256)[],(bool,uint256,uint256))" "0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74" "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" false false 1 (100000,50000000000,100000) (1723291200,1723377600,1723464000,2,1723723200,1)
+("Public",100000000,5000000000),("Ronin",100000000,100000000),("Gokenin,100000000,300000000),("Goshi",100000000,500000000),("Hatamoto",100000000,1000000000),("Shogun",100000000,2500000000) (false,10000,86400))
+
+
+source .env && forge verify-contract \
+  --chain-id 8543 \
+  --watch \
+  --flatten \
+  --via-ir \
+  --rpc-url $BASE_RPC_URL \
+  --constructor-args $(cast abi-encode "constructor(address,address,bool,bool,uint256,(uint256,uint256,uint256),(uint256,uint256,uint256,uint256,uint256,uint256),(string,uint256,uint256)[],(bool,uint256,uint256))" "0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74" "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" false false 1 "(100000,50000000000,100000)" "(1723291200,1723377600,1723464000,2,1723723200,1)" "[('Public',100000000,5000000000),('Ronin',100000000,100000000),('Gokenin',100000000,300000000),('Goshi',100000000,500000000),('Hatamoto',100000000,1000000000),('Shogun',100000000,2500000000)]" "(false,10000,86400)") \
+  --etherscan-api-key $BASESCAN_API_KEY \
+  --force \
+  0x915Fd4218E1593129c9938a2117dc308632650e8 \
+  src/IDO.sol:IDO
+
+
+  source .env && forge verify-contract \
+  --chain-id 8543 \
+  --watch \
+  --flatten \
+  --via-ir \
+  --rpc-url $BASE_RPC_URL \
+  --constructor-args $(cast abi-encode "constructor(address,address,bool,bool,uint256,(uint256,uint256,uint256),(uint256,uint256,uint256,uint256,uint256,uint256),(string,uint256,uint256)[],(bool,uint256,uint256))" "address 1" "address 2" false false 1 "(100000,50000000000,100000)" "(1723291200,1723377600,1723464000,2,1723723200,1)" "[('X1',100000000,5000000000),('X2',100000000,100000000),('Gokenin,100000000,300000000),('Goshi',100000000,500000000),('Hatamoto',100000000,1000000000),('Shogun',100000000,2500000000)]" "(false,10000,86400)") \
+  --etherscan-api-key $BASESCAN_API_KEY \
+  --force \
+  0x915Fd4218E1593129c9938a2117dc308632650e8 \
+  src/IDO.sol:IDO

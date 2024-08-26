@@ -11,7 +11,7 @@ import {IIDO} from "../src/interfaces/IIDO.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
-contract IDOEtherTest is Test {
+contract IDOTokensTest is Test {
     uint256 fork;
     string public RPC_URL;
 
@@ -58,7 +58,7 @@ contract IDOEtherTest is Test {
         vm.label(mary, "mary");
 
         randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
-        walletInTiers = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
+        walletInTiers = vm.envAddress("WALLET_A");
         vm.label(randomUSDCHolder, "randomUSDCHolder");
 
         (tokenPrice, maxAllocations, tgeReleasePercent) = ido.amounts();

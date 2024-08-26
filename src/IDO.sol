@@ -138,7 +138,6 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
         IIDO.Periods memory periodsCopy = periods;
         require(block.timestamp >= periodsCopy.vestingAt, IIDO.IIDO__Unauthorized("Not in vesting phase"));
         require(allocations[msg.sender] > 0, IIDO.IIDO__Unauthorized("No tokens available"));
-        // console.log("block", block.timestamp, lastClaimTimestamps[msg.sender]);
         require(block.timestamp > lastClaimTimestamps[msg.sender], IIDO.IIDO__Unauthorized("Not allowed"));
         _;
     }
@@ -730,9 +729,10 @@ contract IDO is Ownable, Pausable, ReentrancyGuard {
      * @return tokensPerAllocation The allocated token amount (UD60x18).
      */
     function _tokenAmountByParticipation(uint256 amount) private view returns (UD60x18 tokensPerAllocation) {
-        require(token != address(0), IIDO.IIDO__Invalid("IDO token not set"));
+        IIDO.Amounts memory amountsCopy = amounts;
+        require(amountsCopy.tokenPrice > 0, IIDO.IIDO__Invalid("Token price not set"));
 
-        UD60x18 price = convert(amounts.tokenPrice);
+        UD60x18 price = convert(amountsCopy.tokenPrice);
         return convert(amount).div(price);
     }
 

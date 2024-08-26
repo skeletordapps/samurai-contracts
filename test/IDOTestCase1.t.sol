@@ -33,7 +33,6 @@ contract IDOTestCase1 is Test {
     address randomUSDCHolder;
     address walletA;
     address walletB;
-    address walletC;
 
     function setUp() public virtual {
         RPC_URL = vm.envString("BASE_RPC_URL");
@@ -63,9 +62,8 @@ contract IDOTestCase1 is Test {
         (registrationAt, participationStartsAt, participationEndsAt, vestingDuration, vestingAt, cliff) = ido.periods();
 
         randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
-        walletA = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
-        walletB = 0xcaE8cF1e2119484D6CC3B6EFAad2242aDBDB1Ea8;
-        walletC = 0xebf2e0b82F63F4a6F9Bbf95A7523Cd2959CEC815;
+        walletA = vm.envAddress("WALLET_A");
+        walletB = vm.envAddress("WALLET_B");
     }
 
     modifier walletLinked(address wallet) {

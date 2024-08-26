@@ -57,7 +57,7 @@ contract IDOEtherTest is Test {
         mary = vm.addr(2);
         vm.label(mary, "mary");
 
-        walletInTiers = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
+        walletInTiers = vm.envAddress("WALLET_A");
 
         (tokenPrice, maxAllocations, tgeReleasePercent) = ido.amounts();
         uint256 numberOfRanges = ido.rangesLength();
