@@ -563,7 +563,7 @@ contract IDOTokensTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenStoredVestingAtIsSetAndNewValueIsUnderParticipationEnd()
         external
-        periodsSet(30 days * 8, participationEndsAt + 1 days, 0)
+        periodsSet(8, participationEndsAt + 1 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -587,7 +587,7 @@ contract IDOTokensTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 0)
+        periodsSet(8, participationEndsAt + 2 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -610,7 +610,7 @@ contract IDOTokensTest is Test {
 
     function testRevertSetPeriodsWhenCliffIsUnderStoredCliff()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -859,7 +859,7 @@ contract IDOTokensTest is Test {
 
     function testMustReturnZeroWhenWalletHasNoAllocation()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
     {
         vm.warp(vestingAt);
 
@@ -874,7 +874,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
     {
         vm.warp(vestingAt + 1 days);
@@ -894,7 +894,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -949,7 +949,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
         tgeClaimed(walletInTiers)
@@ -967,7 +967,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -985,7 +985,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1001,7 +1001,7 @@ contract IDOTokensTest is Test {
     // hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
     // inParticipationPeriod
     // participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-    // periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+    // periodsSet(8, participationEndsAt + 2 days, 10 days)
     // idoTokenSet
     // idoTokenFilled(false)
     {
@@ -1029,7 +1029,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {
@@ -1058,7 +1058,7 @@ contract IDOTokensTest is Test {
         hasBalance(walletInTiers, ido.getWalletRange(walletInTiers).min)
         inParticipationPeriod
         participated(walletInTiers, acceptedToken, ido.getWalletRange(walletInTiers).min)
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 10 days)
+        periodsSet(8, participationEndsAt + 2 days, 10 days)
         idoTokenSet
         idoTokenFilled(false)
     {

@@ -547,7 +547,7 @@ contract IDOEtherTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenStoredVestingAtIsSetAndNewValueIsUnderParticipationEnd()
         external
-        periodsSet(30 days * 8, participationEndsAt + 1 days, 0)
+        periodsSet(8, participationEndsAt + 1 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
@@ -571,7 +571,7 @@ contract IDOEtherTest is Test {
     /// When vestingAt is already set
     function testRevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
         external
-        periodsSet(30 days * 8, participationEndsAt + 2 days, 0)
+        periodsSet(8, participationEndsAt + 2 days, 0)
     {
         IIDO.Periods memory expectedPeriods = IIDO.Periods({
             registrationAt: registrationAt,
