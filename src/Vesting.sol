@@ -124,6 +124,11 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         emit IVesting.IDOTokenSet(_token);
     }
 
+    /**
+     * @notice Alows owner to set the list of wallets and it's purchases to be vested based on contract strategy
+     * @param wallets list of wallets
+     * @param tokensPurchased list of amounts of tokens purchased
+    */
     function setAllPurchases(address[] calldata wallets, uint256[] calldata tokensPurchased)
         external
         onlyOwner
@@ -354,6 +359,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
                     convert(getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Month));
                 UD60x18 elapsedMonths =
                     convert(getDiffByPeriodType(_cliffEndsAt, block.timestamp, IVesting.PeriodType.Month));
+
                 UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
                 UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
                 vestedAmount = tgeAmount.add(vested);

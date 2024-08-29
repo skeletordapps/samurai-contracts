@@ -11,7 +11,8 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 
 contract DeployIDO is Script {
     function run() external returns (IDO ido) {
-        address samuraiTiers = 0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74;
+        // address samuraiTiers = 0xdB0Ee72eD5190e9ef7eEC288a92f73c5cf3B3c74; // wrong
+        address samuraiTiers = 0x2Bb8Fc0196becd84bac853E32c9c252343699186; // new
         // address acceptedToken = vm.envAddress("BASE_USDC_ADDRESS"); // use address(0) if using ether
         address acceptedToken = vm.envAddress("BASE_FUSDC_ADDRESS");
         bool usingETH = false;

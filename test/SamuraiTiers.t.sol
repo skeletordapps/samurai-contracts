@@ -214,7 +214,8 @@ contract SamuraiTiersTest is Test {
         // Mock lock information for the test case
         ISamLock.LockInfo[] memory lockInfos = new ISamLock.LockInfo[](1); // Define lock info structure
 
-        lockInfos[0] = ISamLock.LockInfo(0, lockedAmount, withdrawnAmount, block.timestamp, block.timestamp, 0 days); // Set desired locked/withdrawn amounts
+        lockInfos[0] =
+            ISamLock.LockInfo(0, lockedAmount, withdrawnAmount, block.timestamp, block.timestamp, 0 days, 7000000000); // Set desired locked/withdrawn amounts
         vm.mockCall(
             address(samuraiTiers.lock()),
             abi.encodeWithSelector(locksMock.getLockInfos.selector, wallet),
@@ -280,6 +281,6 @@ contract SamuraiTiersTest is Test {
         ISamuraiTiers.Tier memory user1Tier = samuraiTiers.getTier(user1);
         vm.stopPrank();
 
-        console.log("tier", user1Tier.name);
+        assertEq(user1Tier.name, "Shogun");
     }
 }

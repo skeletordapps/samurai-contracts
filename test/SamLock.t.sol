@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console} from "forge-std/console.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {DeployLock} from "../script/DeployLock.s.sol";
-import {ISamLock} from "../src/interfaces/ISamLock.sol";
+import {ILock} from "../src/interfaces/ILock.sol";
 import {UD60x18, ud} from "@prb/math/src/UD60x18.sol";
 
 contract SamLockTest is Test {
@@ -70,7 +70,7 @@ contract SamLockTest is Test {
         uint256 period = lock.SIX_MONTHS();
 
         vm.startPrank(bob);
-        vm.expectRevert(ISamLock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
         lock.lock(minAmount - 10 ether, period);
         vm.stopPrank();
     }
@@ -81,7 +81,7 @@ contract SamLockTest is Test {
         deal(token, bob, amount);
 
         vm.startPrank(bob);
-        vm.expectRevert(ISamLock.SamLock__Invalid_Period.selector);
+        vm.expectRevert(ILock.SamLock__Invalid_Period.selector);
         lock.lock(amount, period);
         vm.stopPrank();
     }
@@ -93,7 +93,7 @@ contract SamLockTest is Test {
         ERC20(token).approve(address(lock), amount);
 
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Locked(wallet, amount, lock.nextLockIndex());
+        emit ILock.Locked(wallet, amount, lock.nextLockIndex());
         lock.lock(amount, lock.THREE_MONTHS());
         vm.stopPrank();
         _;
@@ -123,35 +123,35 @@ contract SamLockTest is Test {
 
     function testRevertWithdrawWithZeroAmount() external {
         vm.startPrank(bob);
-        vm.expectRevert(ISamLock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
         lock.withdraw(0, 0);
         vm.stopPrank();
     }
 
     function testRevertWithdrawWithGreaterAmount() external locked(bob, 30_000 ether) {
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob); // Using the getter function
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob); // Using the getter function
 
         vm.warp(lockings[0].unlockTime);
 
         vm.startPrank(bob);
-        vm.expectRevert(ISamLock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
         lock.withdraw(lockings[0].lockedAmount * 2, 0);
         vm.stopPrank();
     }
 
     function testRevertWithdrawWhenBeforeUnlockDate() external locked(mary, 210_000 ether) {
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(mary); // Using the getter function
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(mary); // Using the getter function
 
         vm.warp(lockings[0].unlockTime - 1 days);
 
         vm.startPrank(mary);
-        vm.expectRevert(ISamLock.SamLock__Cannot_Unlock_Before_Period.selector);
+        vm.expectRevert(ILock.SamLock__Cannot_Unlock_Before_Period.selector);
         lock.withdraw(lockings[0].lockedAmount, 0);
         vm.stopPrank();
     }
 
     function testCanWithdraw() external locked(bob, 100_000 ether) {
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
 
         uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
@@ -166,12 +166,12 @@ contract SamLockTest is Test {
         vm.startPrank(bob);
 
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Withdrawn(bob, lockedAmount, 0);
+        emit ILock.Withdrawn(bob, lockedAmount, 0);
         lock.withdraw(lockedAmount, 0);
 
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
 
         uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
@@ -189,7 +189,7 @@ contract SamLockTest is Test {
         lock.lock(amount, threeMonths);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
         uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
@@ -204,11 +204,11 @@ contract SamLockTest is Test {
         vm.warp(unlockTime);
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Withdrawn(bob, amount, 0);
+        emit ILock.Withdrawn(bob, amount, 0);
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
         uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
@@ -224,7 +224,7 @@ contract SamLockTest is Test {
         lock.lock(amount, sixMonths);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
         uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
@@ -240,11 +240,11 @@ contract SamLockTest is Test {
         vm.warp(unlockTime);
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Withdrawn(bob, amount, 0);
+        emit ILock.Withdrawn(bob, amount, 0);
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
         uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
@@ -260,7 +260,7 @@ contract SamLockTest is Test {
         lock.lock(amount, nineMonths);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
         uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
@@ -276,11 +276,11 @@ contract SamLockTest is Test {
         vm.warp(unlockTime);
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Withdrawn(bob, amount, 0);
+        emit ILock.Withdrawn(bob, amount, 0);
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
         uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
@@ -296,7 +296,7 @@ contract SamLockTest is Test {
         lock.lock(amount, twelveMonths);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
         uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
@@ -311,11 +311,11 @@ contract SamLockTest is Test {
         vm.warp(unlockTime);
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.Withdrawn(bob, amount, 0);
+        emit ILock.Withdrawn(bob, amount, 0);
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
         uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
@@ -323,16 +323,16 @@ contract SamLockTest is Test {
 
     function testRevertUpdateMultipliersWithZeroValues() external {
         vm.startPrank(owner);
-        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
         lock.updateMultipliers(0, 2e18, 3e18, 4e18);
 
-        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
         lock.updateMultipliers(1e18, 0, 3e18, 4e18);
 
-        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
         lock.updateMultipliers(1e18, 2e18, 0, 4e18);
 
-        vm.expectRevert(ISamLock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
         lock.updateMultipliers(1e18, 2e18, 3e18, 0);
         vm.stopPrank();
     }
@@ -345,7 +345,7 @@ contract SamLockTest is Test {
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ISamLock.MultipliersUpdated(
+        emit ILock.MultipliersUpdated(
             expectedMultiplier1, expectedMultiplier2, expectedMultiplier3, expectedMultiplier4
         );
         lock.updateMultipliers(expectedMultiplier1, expectedMultiplier2, expectedMultiplier3, expectedMultiplier4);
@@ -371,7 +371,7 @@ contract SamLockTest is Test {
 
     function testWalletKeepPointsAfterUpdateMultipliers() external locked(bob, 30_000 ether) multipliersUpdated {
         uint256 newMinAmount = lock.minToLock();
-        ISamLock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
 
         vm.warp(latestLocks[0].unlockTime);
         uint256 points = lock.pointsByLock(bob, 0);
@@ -390,7 +390,7 @@ contract SamLockTest is Test {
     }
 
     function testRevertPointsByLockWithWrongIndex() external locked(bob, 30_000 ether) {
-        vm.expectRevert(ISamLock.SamLock__InvalidLockIndex.selector);
+        vm.expectRevert(ILock.SamLock__InvalidLockIndex.selector);
         lock.pointsByLock(bob, 1);
     }
 
@@ -429,7 +429,7 @@ contract SamLockTest is Test {
 
     function testRevertGetLockInfosWhithoutAny() external {
         vm.startPrank(bob);
-        ISamLock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
         vm.stopPrank();
 
         assertEq(lockInfos.length, 0);
@@ -437,7 +437,7 @@ contract SamLockTest is Test {
 
     function testShouldReturnEmptyLockInfosWhenHasNoLock() external {
         vm.startPrank(bob);
-        ISamLock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
         vm.stopPrank();
 
         assertEq(lockInfos.length, 0);

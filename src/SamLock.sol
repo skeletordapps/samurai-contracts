@@ -8,7 +8,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console} from "forge-std/console.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
-import {ISamLock} from "./interfaces/ISamLock.sol";
+import {ILock} from "./interfaces/ILock.sol";
 
 contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -24,13 +24,13 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalLocked;
     uint256 public nextLockIndex;
 
-    mapping(address wallet => ISamLock.LockInfo[]) public lockings;
+    mapping(address wallet => ILock.LockInfo[]) public lockings;
     mapping(uint256 period => uint256 multiplier) public multipliers;
 
     constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
         // SLK-02S: Inexistent Sanitization of Input Address - OK
         // Added a check to validate the sam address
-        if (_sam == address(0)) revert ISamLock.SamLock__InvalidAddress();
+        if (_sam == address(0)) revert ILock.SamLock__InvalidAddress();
         sam = _sam;
 
         multipliers[THREE_MONTHS] = 1e18;
@@ -47,17 +47,17 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     function lock(uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
         // SLK-04M: Unauthorized Transfer of Funds - OK
 
-        if (amount < minToLock) revert ISamLock.SamLock__InsufficientAmount();
+        if (amount < minToLock) revert ILock.SamLock__InsufficientAmount();
         if (
             lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
                 && lockPeriod != TWELVE_MONTHS
-        ) revert ISamLock.SamLock__Invalid_Period();
+        ) revert ILock.SamLock__Invalid_Period();
 
         ERC20(sam).safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 lockIndex = nextLockIndex;
 
-        ISamLock.LockInfo memory newLock = ISamLock.LockInfo({
+        ILock.LockInfo memory newLock = ILock.LockInfo({
             lockIndex: lockIndex,
             lockedAmount: amount,
             withdrawnAmount: 0,
@@ -69,7 +69,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         lockings[msg.sender].push(newLock);
         totalLocked += amount;
         nextLockIndex++;
-        emit ISamLock.Locked(msg.sender, amount, lockIndex);
+        emit ILock.Locked(msg.sender, amount, lockIndex);
     }
 
     /// @notice Withdraw locked SAM tokens and earned points after the lock period ends
@@ -79,15 +79,15 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         // SLK-03M: Unauthorized Release of Locks - OK
         // The wallet param was removed and the msg.sender is being used to avoid transfer of funds
 
-        if (amount == 0) revert ISamLock.SamLock__InsufficientAmount();
+        if (amount == 0) revert ILock.SamLock__InsufficientAmount();
 
-        ISamLock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex]; // SLK-01C: Inefficient mapping Lookups - OK
-        if (block.timestamp < lockInfo.unlockTime) revert ISamLock.SamLock__Cannot_Unlock_Before_Period();
-        if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ISamLock.SamLock__InsufficientAmount();
+        ILock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex]; // SLK-01C: Inefficient mapping Lookups - OK
+        if (block.timestamp < lockInfo.unlockTime) revert ILock.SamLock__Cannot_Unlock_Before_Period();
+        if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ILock.SamLock__InsufficientAmount();
 
         lockInfo.withdrawnAmount += amount;
         totalLocked -= amount;
-        emit ISamLock.Withdrawn(msg.sender, amount, lockIndex);
+        emit ILock.Withdrawn(msg.sender, amount, lockIndex);
 
         ERC20(sam).safeTransfer(msg.sender, amount);
     }
@@ -117,7 +117,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             multiplier3x <= multipliers[THREE_MONTHS] || multiplier6x <= multipliers[SIX_MONTHS]
                 || multiplier9x <= multipliers[NINE_MONTHS] || multiplier12x <= multipliers[TWELVE_MONTHS]
         ) {
-            revert ISamLock.SamLock__InvalidMultiplier();
+            revert ILock.SamLock__InvalidMultiplier();
         }
 
         multipliers[THREE_MONTHS] = multiplier3x;
@@ -125,14 +125,14 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         multipliers[NINE_MONTHS] = multiplier9x;
         multipliers[TWELVE_MONTHS] = multiplier12x;
 
-        emit ISamLock.MultipliersUpdated(multiplier3x, multiplier6x, multiplier9x, multiplier12x);
+        emit ILock.MultipliersUpdated(multiplier3x, multiplier6x, multiplier9x, multiplier12x);
     }
 
     /// @notice Retrieve all lock information entries for a specific user (address)
     /// @param wallet Address of the user
     /// @return lockInfos Array containing the user's lock information entries
-    /// @dev Reverts with ISamLock.SamLock__NotFound if there are no lock entries for the user
-    function getLockInfos(address wallet) public view returns (ISamLock.LockInfo[] memory) {
+    /// @dev Reverts with ILock.SamLock__NotFound if there are no lock entries for the user
+    function getLockInfos(address wallet) public view returns (ILock.LockInfo[] memory) {
         return lockings[wallet];
     }
 
@@ -140,11 +140,11 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     /// @param wallet Address of the user
     /// @param lockIndex Index of the lock information entry for the user
     /// @return points Total points earned for the specific lock entry (uint256)
-    /// @dev Reverts with ISamLock.SamLock__InvalidLockIndex if the lock index is out of bounds
+    /// @dev Reverts with ILock.SamLock__InvalidLockIndex if the lock index is out of bounds
     function pointsByLock(address wallet, uint256 lockIndex) public view returns (uint256 points) {
-        if (lockIndex >= lockings[wallet].length) revert ISamLock.SamLock__InvalidLockIndex();
+        if (lockIndex >= lockings[wallet].length) revert ILock.SamLock__InvalidLockIndex();
 
-        ISamLock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
+        ILock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
 
         // SLK-01M: Inexistent Retroactive Application of Multipliers - OK
         // The multiplier is now loading the latest multiplier based in lockPeriod selected by the user

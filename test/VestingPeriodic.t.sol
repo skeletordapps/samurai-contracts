@@ -353,99 +353,146 @@ contract VestingPeriodicTest is Test {
 
     function testCanClaimTGEPlusOneMonthAmountUnlocked()
         external
-        periodsSet(8, block.timestamp + 2 days, 1)
+        periodsSet(3, block.timestamp + 2 days, 1)
         idoTokenSet
         idoTokenFilled(false)
         purchasesSet
     {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
-        uint256 vestingEndsAt = vesting.vestingEndsAt();
 
-        vm.warp(vestingAt + 1 days);
-
+        uint256 purchased = vesting.purchases(bob);
         uint256 expectedTGEAmount = vesting.previewTGETokens(bob);
+
+        vm.warp(cliffEndsAt - 1 hours);
+        uint256 claimable = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, expectedTGEAmount);
+
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 1));
+        claimable = vesting.previewClaimableTokens(bob);
+        assertTrue(claimable > expectedTGEAmount);
+
+        UD60x18 total = ud(totalPurchased);
+        UD60x18 vested = ud(vesting.previewVestedTokens());
+        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
+        UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
+        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
+        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
+        uint256 expectedAmountAfterOneMonth = walletVested.intoUint256();
+
+        assertEq(claimable, expectedAmountAfterOneMonth);
+
         uint256 walletBalance = ERC20(vesting.token()).balanceOf(bob);
 
-        uint256 totalMonths = BokkyPooBahsDateTimeLibrary.diffMonths(cliffEndsAt, vestingEndsAt);
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
 
-        console.log("total in months", totalMonths);
-
-        // vm.warp(vesting.cliffEndsAt() + 100 days);
-
-        // uint256 expectedVestedTokens = vesting.previewClaimableTokens(bob);
-        // assertTrue(expectedVestedTokens > expectedTGEAmount);
-
-        // vm.startPrank(bob);
-        // vesting.claim();
-        // vm.stopPrank();
-
-        // uint256 walletBalanceAfter = ERC20(vesting.token()).balanceOf(bob);
-        // assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
+        uint256 walletBalanceAfter = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(walletBalanceAfter, walletBalance + claimable);
     }
 
-    // function testCanClaimVestedTokensAfterTGEClaim()
-    //     external
-    // periodsSet(8, block.timestamp + 2 days, 1)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    //     purchasesSet
-    // {
-    //     vm.warp(vestingAt);
+    function testCanClaimTGEAnd2MonthsLater()
+        external
+        periodsSet(3, block.timestamp + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+        purchasesSet
+    {
+        uint256 cliffEndsAt = vesting.cliffEndsAt();
 
-    //     uint256 expectedTGEAmount = vesting.previewTGETokens(bob);
-    //     uint256 walletBalance = ERC20(vesting.token()).balanceOf(bob);
-    //     uint256 expectedVestedTokens = vesting.previewClaimableTokens(bob);
-    //     assertEq(expectedVestedTokens, expectedTGEAmount);
+        uint256 purchased = vesting.purchases(bob);
+        uint256 expectedTGEAmount = vesting.previewTGETokens(bob);
 
-    //     vm.startPrank(bob);
-    //     vesting.claim();
-    //     vm.stopPrank();
+        vm.warp(cliffEndsAt - 1 hours);
+        uint256 claimable = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, expectedTGEAmount);
 
-    //     uint256 walletBalanceAfterTGEClaim = ERC20(vesting.token()).balanceOf(bob);
-    //     assertEq(walletBalanceAfterTGEClaim, walletBalance + expectedTGEAmount);
+        uint256 walletBalance1 = ERC20(vesting.token()).balanceOf(bob);
 
-    //     vm.warp(vesting.vestingEndsAt() + 10 days);
-    //     uint256 expectedVestedTokensAfterTGE = vesting.previewClaimableTokens(bob);
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
 
-    //     vm.startPrank(bob);
-    //     vesting.claim();
-    //     vm.stopPrank();
+        claimable = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, 0);
 
-    //     uint256 walletBalanceAfter = ERC20(vesting.token()).balanceOf(bob);
-    //     assertEq(walletBalanceAfter, walletBalanceAfterTGEClaim + expectedVestedTokensAfterTGE);
+        uint256 walletBalance2 = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(walletBalance2, walletBalance1 + expectedTGEAmount);
 
-    //     uint256 tokensBought = vesting.purchases(bob);
-    //     uint256 tokensClaimed = vesting.tokensClaimed(bob);
-    //     assertEq(tokensClaimed, tokensBought);
-    // }
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 2));
+        claimable = vesting.previewClaimableTokens(bob);
 
-    // function testCanClaimAllVestedTokens()
-    //     external
-    // periodsSet(8, block.timestamp + 2 days, 1)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    //     purchasesSet
-    // {
-    //     vm.warp(vesting.cliffEndsAt() + 1 minutes);
+        UD60x18 total = ud(totalPurchased);
+        UD60x18 vested = ud(vesting.previewVestedTokens());
+        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
+        UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
+        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
+        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
+        uint256 expectedAmountAfter2Months = walletVested.sub(ud(expectedTGEAmount)).intoUint256();
 
-    //     uint256 totalTokens = vesting.purchases(bob);
-    //     uint256 totalClaimed = vesting.tokensClaimed(bob);
-    //     uint256 claimableAmount = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, expectedAmountAfter2Months);
 
-    //     while (totalClaimed < totalTokens) {
-    //         if (claimableAmount > 0) {
-    //             vm.startPrank(bob);
-    //             vesting.claim();
-    //             vm.stopPrank();
-    //         }
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
 
-    //         vm.warp(vesting.lastClaimTimestamps(bob) + 10 days);
-    //         claimableAmount = vesting.previewClaimableTokens(bob);
-    //         totalClaimed = vesting.tokensClaimed(bob);
-    //     }
+        uint256 walletBalance3 = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(walletBalance3, walletBalance2 + claimable);
+    }
 
-    //     assertEq(totalTokens, totalClaimed);
-    // }
+    function testCanClaimAllPurchasedTokensFollowingPeriodicVesting()
+        external
+        periodsSet(3, block.timestamp + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+        purchasesSet
+    {
+        uint256 cliffEndsAt = vesting.cliffEndsAt();
+
+        uint256 purchased = vesting.purchases(bob);
+        uint256 expectedTGEAmount = vesting.previewTGETokens(bob);
+
+        vm.warp(cliffEndsAt - 1 hours);
+        uint256 claimable = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, expectedTGEAmount);
+
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
+
+        claimable = vesting.previewClaimableTokens(bob);
+        assertEq(claimable, 0);
+
+        uint256 balance = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(balance, expectedTGEAmount);
+
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 1));
+
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
+
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 2));
+
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
+
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 3));
+
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
+
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 3) + 1 hours);
+
+        vm.startPrank(bob);
+        vesting.claim();
+        vm.stopPrank();
+
+        balance = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(balance, purchased);
+    }
 
     // EMERGENCY WITHDRAW FOR SPECIFIC WALLET
 

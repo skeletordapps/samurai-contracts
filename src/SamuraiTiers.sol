@@ -114,7 +114,9 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         // Check Sam Lock balance
         ISamLock.LockInfo[] memory lockings = ISamLocks(lock).getLockInfos(wallet);
         uint256 totalLocked;
+
         for (uint256 i = 0; i < lockings.length; i++) {
+            console.log(lockings[i].lockedAmount, lockings[i].withdrawnAmount);
             totalLocked += lockings[i].lockedAmount - lockings[i].withdrawnAmount;
         }
 
