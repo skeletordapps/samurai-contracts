@@ -128,13 +128,16 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @notice Alows owner to set the list of wallets and it's purchases to be vested based on contract strategy
      * @param wallets list of wallets
      * @param tokensPurchased list of amounts of tokens purchased
-    */
+     */
     function setAllPurchases(address[] calldata wallets, uint256[] calldata tokensPurchased)
         external
         onlyOwner
         nonReentrant
     {
         for (uint256 i = 0; i < wallets.length; i++) {
+            require(wallets[i] != address(0), IVesting.IVesting__Invalid("Invalid address"));
+            require(tokensPurchased[i] > 0, IVesting.IVesting__Invalid("Invalid amount permitted"));
+
             address wallet = wallets[i];
 
             purchases[wallet] = tokensPurchased[i];

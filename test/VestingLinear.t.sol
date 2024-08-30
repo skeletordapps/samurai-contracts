@@ -61,6 +61,44 @@ contract VestingLinearTest is Test {
         assertEq(cliff, 0);
     }
 
+    function testRevertSetAllPurchasesWithInvalidAddress() external {
+        uint256 count = 2;
+        address[] memory wallets = new address[](count);
+        uint256[] memory tokensPurchased = new uint256[](count);
+
+        wallets[0] = address(0);
+        wallets[1] = mary;
+
+        uint256 amount = totalPurchased / 2;
+
+        tokensPurchased[0] = amount;
+        tokensPurchased[1] = amount;
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "Invalid address"));
+        vesting.setAllPurchases(wallets, tokensPurchased);
+        vm.stopPrank();
+    }
+
+    function testRevertSetAllPurchasesWithInvalidAmountPermitted() external {
+        uint256 count = 2;
+        address[] memory wallets = new address[](count);
+        uint256[] memory tokensPurchased = new uint256[](count);
+
+        wallets[0] = bob;
+        wallets[1] = mary;
+
+        uint256 amount = totalPurchased / 2;
+
+        tokensPurchased[0] = amount;
+        tokensPurchased[1] = 0;
+
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "Invalid amount permitted"));
+        vesting.setAllPurchases(wallets, tokensPurchased);
+        vm.stopPrank();
+    }
+
     function testCanSetAllPurchases() external {
         uint256 count = 2;
         address[] memory wallets = new address[](count);
@@ -290,11 +328,6 @@ contract VestingLinearTest is Test {
         uint256 amount = vesting.previewClaimableTokens(bob);
         assertEq(amount, 0);
     }
-
-    // function testMustReturnZeroWhenVestingDidNotStart() external {
-    //     uint256 amount = vesting.previewClaimableTokens(bob);
-    //     assertEq(amount, 0);
-    // }
 
     function testMustReturnZeroWhenWalletHasNoAllocation() external periodsSet(8, block.timestamp + 2 days, 1) {
         vm.warp(vestingAt);
