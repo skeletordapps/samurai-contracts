@@ -7,6 +7,7 @@ import {DeploySamuraiPoints} from "../script/DeploySamuraiPoints.s.sol";
 import {SamuraiPoints} from "../src/SamuraiPoints.sol";
 import {IPoints} from "../src/interfaces/IPoints.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract SamuraiPointsTest is Test {
     uint256 fork;
@@ -43,11 +44,7 @@ contract SamuraiPointsTest is Test {
         assertTrue(samuraiPoints.hasRole(samuraiPoints.MANAGER_ROLE(), owner));
     }
 
-    function testCanGrantManagerRoleToAccounts() external {}
-
-    function testCanRevokeManagerRoleFromAccounts() external {}
-
-    function testRevertAddPoints() external {
+    function testRevertMintPoints() external {
         vm.startPrank(address(contractA));
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -56,26 +53,30 @@ contract SamuraiPointsTest is Test {
                 samuraiPoints.MANAGER_ROLE()
             )
         );
-        contractA.grantPointsToWallet(bob, 10);
+        contractA.mintPointsToWallet(bob, 10 ether);
         vm.stopPrank();
     }
 
     function testCanAddPoints() external {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
-        emit IPoints.PointsAdded(bob, 10);
-        samuraiPoints.grantPoints(bob, 10);
+        emit IPoints.MintedPoints(bob, 10 ether);
+        samuraiPoints.mint(bob, 10 ether);
         vm.stopPrank();
+
+        assertEq(ERC20(address(samuraiPoints)).balanceOf(bob), 10 ether);
     }
 
-    modifier pointsAdded(address to, uint256 numOfPoints) {
+    modifier mintedPoints(address to, uint256 numOfPoints) {
         vm.startPrank(owner);
-        samuraiPoints.grantPoints(to, numOfPoints);
+        samuraiPoints.mint(to, numOfPoints);
         vm.stopPrank();
+
+        assertEq(ERC20(address(samuraiPoints)).balanceOf(to), numOfPoints);
         _;
     }
 
-    function testRevertRemovePoints() external pointsAdded(mary, 40) {
+    function testRevertBurnPoints() external mintedPoints(mary, 40 ether) {
         vm.startPrank(address(contractB));
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -84,11 +85,26 @@ contract SamuraiPointsTest is Test {
                 samuraiPoints.MANAGER_ROLE()
             )
         );
-        contractB.removePointsFromWallet(mary, 20);
+        contractB.burnPointsFromWallet(mary, 20 ether);
         vm.stopPrank();
     }
 
-    function testCanRemovePoints() external pointsAdded(mary, 20) {
+    function testRevertBurnForInsufficientPoints() external mintedPoints(mary, 50 ether) {
+        vm.startPrank(owner);
+        samuraiPoints.grantManagerRole(bob);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IPoints.NotAllowed.selector, "Insufficient points"));
+        samuraiPoints.burn(mary, 55 ether);
+        assertEq(ERC20(address(samuraiPoints)).balanceOf(mary), 50 ether);
+
+        samuraiPoints.burn(mary, 50 ether);
+        assertEq(ERC20(address(samuraiPoints)).balanceOf(mary), 0);
+        vm.stopPrank();
+    }
+
+    function testCanRemovePoints() external mintedPoints(mary, 20 ether) {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit IAccessControl.RoleGranted(samuraiPoints.MANAGER_ROLE(), bob, owner);
@@ -96,14 +112,28 @@ contract SamuraiPointsTest is Test {
         vm.stopPrank();
 
         vm.startPrank(bob);
-        emit IPoints.PointsRemoved(mary, 10);
-        samuraiPoints.removePoints(mary, 10);
+        emit IPoints.BurnedPoints(mary, 10 ether);
+        samuraiPoints.burn(mary, 10 ether);
         vm.stopPrank();
+
+        assertEq(ERC20(address(samuraiPoints)).balanceOf(mary), 10 ether);
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit IAccessControl.RoleRevoked(samuraiPoints.MANAGER_ROLE(), bob, owner);
         samuraiPoints.revokeManagerRole(bob);
+        vm.stopPrank();
+    }
+
+    function testRevertPointsTransfer() external mintedPoints(bob, 10 ether) {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IPoints.NotAllowed.selector, "Direct transfers are not allowed"));
+        ERC20(address(samuraiPoints)).transfer(mary, 5 ether);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IPoints.NotAllowed.selector, "Direct transfers are not allowed"));
+        ERC20(address(samuraiPoints)).transferFrom(bob, mary, 5 ether);
         vm.stopPrank();
     }
 }
@@ -115,8 +145,8 @@ contract ContractA {
         iPoints = IPoints(_points);
     }
 
-    function grantPointsToWallet(address wallet, uint256 numOfPoints) external {
-        iPoints.grantPoints(wallet, numOfPoints);
+    function mintPointsToWallet(address wallet, uint256 numOfPoints) external {
+        iPoints.mint(wallet, numOfPoints);
     }
 }
 
@@ -127,7 +157,7 @@ contract ContractB {
         iPoints = IPoints(_points);
     }
 
-    function removePointsFromWallet(address wallet, uint256 numOfPoints) external {
-        iPoints.removePoints(wallet, numOfPoints);
+    function burnPointsFromWallet(address wallet, uint256 numOfPoints) external {
+        iPoints.burn(wallet, numOfPoints);
     }
 }
