@@ -7,6 +7,7 @@ import {console} from "forge-std/console.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {DeployLock} from "../script/DeployLock.s.sol";
 import {ILock} from "../src/interfaces/ILock.sol";
+import {IPoints} from "../src/interfaces/IPoints.sol";
 import {UD60x18, ud} from "@prb/math/src/UD60x18.sol";
 
 contract SamLockTest is Test {
@@ -15,7 +16,9 @@ contract SamLockTest is Test {
 
     DeployLock deployer;
     SamLock lock;
+    IPoints iPoints;
     address token;
+    address points;
 
     address owner;
     address bob;
@@ -35,7 +38,9 @@ contract SamLockTest is Test {
 
         deployer = new DeployLock();
 
-        (lock, token) = deployer.run();
+        (lock, token, points) = deployer.runForTests();
+
+        iPoints = IPoints(points);
 
         owner = lock.owner();
         bob = vm.addr(1);
@@ -70,7 +75,7 @@ contract SamLockTest is Test {
         uint256 period = lock.SIX_MONTHS();
 
         vm.startPrank(bob);
-        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient amount"));
         lock.lock(minAmount - 10 ether, period);
         vm.stopPrank();
     }
@@ -81,7 +86,7 @@ contract SamLockTest is Test {
         deal(token, bob, amount);
 
         vm.startPrank(bob);
-        vm.expectRevert(ILock.SamLock__Invalid_Period.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid period"));
         lock.lock(amount, period);
         vm.stopPrank();
     }
@@ -123,9 +128,28 @@ contract SamLockTest is Test {
 
     function testRevertWithdrawWithZeroAmount() external {
         vm.startPrank(bob);
-        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient amount"));
         lock.withdraw(0, 0);
         vm.stopPrank();
+    }
+
+    function testRevertClaimPointsWithNoPoints() external locked(bob, 30_000 ether) {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to claim"));
+        lock.claimPoints();
+        vm.stopPrank();
+    }
+
+    function testCanClaimPoints() external locked(bob, 30_000 ether) {
+        vm.warp(block.timestamp + 90 days);
+        uint256 expectedPoints = lock.pointsByLock(bob, 0);
+
+        vm.startPrank(bob);
+        lock.claimPoints();
+        vm.stopPrank();
+
+        ILock.LockInfo[] memory locks = lock.getLockInfos(bob);
+        assertEq(locks[0].claimedPoints, expectedPoints);
     }
 
     function testRevertWithdrawWithGreaterAmount() external locked(bob, 30_000 ether) {
@@ -134,7 +158,7 @@ contract SamLockTest is Test {
         vm.warp(lockings[0].unlockTime);
 
         vm.startPrank(bob);
-        vm.expectRevert(ILock.SamLock__InsufficientAmount.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient amount"));
         lock.withdraw(lockings[0].lockedAmount * 2, 0);
         vm.stopPrank();
     }
@@ -145,7 +169,7 @@ contract SamLockTest is Test {
         vm.warp(lockings[0].unlockTime - 1 days);
 
         vm.startPrank(mary);
-        vm.expectRevert(ILock.SamLock__Cannot_Unlock_Before_Period.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Cannot unlock before period"));
         lock.withdraw(lockings[0].lockedAmount, 0);
         vm.stopPrank();
     }
@@ -323,16 +347,16 @@ contract SamLockTest is Test {
 
     function testRevertUpdateMultipliersWithZeroValues() external {
         vm.startPrank(owner);
-        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid multiplier"));
         lock.updateMultipliers(0, 2e18, 3e18, 4e18);
 
-        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid multiplier"));
         lock.updateMultipliers(1e18, 0, 3e18, 4e18);
 
-        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid multiplier"));
         lock.updateMultipliers(1e18, 2e18, 0, 4e18);
 
-        vm.expectRevert(ILock.SamLock__InvalidMultiplier.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid multiplier"));
         lock.updateMultipliers(1e18, 2e18, 3e18, 0);
         vm.stopPrank();
     }
@@ -374,7 +398,7 @@ contract SamLockTest is Test {
         ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
 
         vm.warp(latestLocks[0].unlockTime);
-        uint256 points = lock.pointsByLock(bob, 0);
+        uint256 lockPoints = lock.pointsByLock(bob, 0);
 
         vm.startPrank(bob);
 
@@ -386,11 +410,11 @@ contract SamLockTest is Test {
 
         uint256 multiplier = lock.multipliers(latestLocks[0].lockPeriod);
 
-        assertEq(points, ud(latestLocks[0].lockedAmount).mul(ud(multiplier)).intoUint256());
+        assertEq(lockPoints, ud(latestLocks[0].lockedAmount).mul(ud(multiplier)).intoUint256());
     }
 
     function testRevertPointsByLockWithWrongIndex() external locked(bob, 30_000 ether) {
-        vm.expectRevert(ILock.SamLock__InvalidLockIndex.selector);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid lock index"));
         lock.pointsByLock(bob, 1);
     }
 

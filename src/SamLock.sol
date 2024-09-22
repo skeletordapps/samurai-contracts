@@ -9,6 +9,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console} from "forge-std/console.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {ILock} from "./interfaces/ILock.sol";
+import {IPoints} from "./interfaces/IPoints.sol";
 
 contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -20,17 +21,17 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     uint256 public constant TWELVE_MONTHS = 12 * 30 days;
 
     address public immutable sam;
+    IPoints private immutable iPoints;
     uint256 public minToLock;
     uint256 public totalLocked;
     uint256 public nextLockIndex;
 
     mapping(address wallet => ILock.LockInfo[]) public lockings;
     mapping(uint256 period => uint256 multiplier) public multipliers;
+    mapping(address wallet => uint256 claimedAt) lastClaims;
 
-    constructor(address _sam, uint256 _minToLock) Ownable(msg.sender) {
-        // SLK-02S: Inexistent Sanitization of Input Address - OK
-        // Added a check to validate the sam address
-        if (_sam == address(0)) revert ILock.SamLock__InvalidAddress();
+    constructor(address _sam, address _points, uint256 _minToLock) Ownable(msg.sender) {
+        require(_sam != address(0), ILock.ILock__Error("Invalid address"));
         sam = _sam;
 
         multipliers[THREE_MONTHS] = 1e18;
@@ -38,20 +39,22 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         multipliers[NINE_MONTHS] = 5e18;
         multipliers[TWELVE_MONTHS] = 7e18;
 
+        iPoints = IPoints(_points);
         minToLock = _minToLock;
     }
 
-    /// @notice Lock SAM tokens to earn points based on lock tier and period
-    /// @param amount Amount of SAM tokens to be locked
-    /// @param lockPeriod Lock period chosen by the user (THREE_MONTHS, SIX_MONTHS, NINE_MONTHS, TWELVE_MONTHS)
+    /**
+     * @notice Lock SAM tokens to earn points based on lock tier and period
+     * @param amount Amount of SAM tokens to be locked
+     * @param lockPeriod Lock period chosen by the user (THREE_MONTHS, SIX_MONTHS, NINE_MONTHS, TWELVE_MONTHS)
+     */
     function lock(uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused {
-        // SLK-04M: Unauthorized Transfer of Funds - OK
-
-        if (amount < minToLock) revert ILock.SamLock__InsufficientAmount();
-        if (
-            lockPeriod != THREE_MONTHS && lockPeriod != SIX_MONTHS && lockPeriod != NINE_MONTHS
-                && lockPeriod != TWELVE_MONTHS
-        ) revert ILock.SamLock__Invalid_Period();
+        require(amount >= minToLock, ILock.ILock__Error("Insufficient amount"));
+        require(
+            lockPeriod == THREE_MONTHS || lockPeriod == SIX_MONTHS || lockPeriod == NINE_MONTHS
+                || lockPeriod == TWELVE_MONTHS,
+            ILock.ILock__Error("Invalid period")
+        );
 
         ERC20(sam).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -63,7 +66,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
             withdrawnAmount: 0,
             lockedAt: block.timestamp,
             unlockTime: block.timestamp + lockPeriod,
-            lockPeriod: lockPeriod
+            lockPeriod: lockPeriod,
+            claimedPoints: 0
         });
 
         lockings[msg.sender].push(newLock);
@@ -72,24 +76,48 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         emit ILock.Locked(msg.sender, amount, lockIndex);
     }
 
-    /// @notice Withdraw locked SAM tokens and earned points after the lock period ends
-    /// @param amount Amount of SAM tokens to withdraw (must be less than or equal to locked amount)
-    /// @param lockIndex Index of the specific lock information entry for the user
+    /**
+     * @notice Withdraw locked SAM tokens and earned points after the lock period ends
+     * @param amount Amount of SAM tokens to withdraw (must be less than or equal to locked amount)
+     * @param lockIndex Index of the specific lock information entry for the user
+     */
     function withdraw(uint256 amount, uint256 lockIndex) external nonReentrant {
-        // SLK-03M: Unauthorized Release of Locks - OK
-        // The wallet param was removed and the msg.sender is being used to avoid transfer of funds
+        require(amount > 0, ILock.ILock__Error("Insufficient amount"));
 
-        if (amount == 0) revert ILock.SamLock__InsufficientAmount();
+        ILock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex];
 
-        ILock.LockInfo storage lockInfo = lockings[msg.sender][lockIndex]; // SLK-01C: Inefficient mapping Lookups - OK
-        if (block.timestamp < lockInfo.unlockTime) revert ILock.SamLock__Cannot_Unlock_Before_Period();
-        if (amount > lockInfo.lockedAmount - lockInfo.withdrawnAmount) revert ILock.SamLock__InsufficientAmount();
+        require(block.timestamp >= lockInfo.unlockTime, ILock.ILock__Error("Cannot unlock before period"));
+        require(amount <= lockInfo.lockedAmount - lockInfo.withdrawnAmount, ILock.ILock__Error("Insufficient amount"));
 
         lockInfo.withdrawnAmount += amount;
         totalLocked -= amount;
         emit ILock.Withdrawn(msg.sender, amount, lockIndex);
 
         ERC20(sam).safeTransfer(msg.sender, amount);
+    }
+
+    /**
+     * @notice Claim samurai points distributed for all wallet locks
+     * @dev Mint accrued Samurai Points (SPS)
+     *      - Revert when tries to claim at the same time
+     *      - Iterates through all wallet locks and mint the amount in samurai points
+     *      - Revert if there's no points to claim
+     */
+    function claimPoints() external nonReentrant {
+        require(block.timestamp > lastClaims[msg.sender], ILock.ILock__Error("Unallowed to claim right now"));
+        uint256 points;
+        ILock.LockInfo[] memory walletLocks = lockings[msg.sender];
+
+        for (uint256 i = 0; i < walletLocks.length; i++) {
+            uint256 lockPoints = pointsByLock(msg.sender, walletLocks[i].lockIndex);
+            points += lockPoints;
+            lockings[msg.sender][i].claimedPoints = lockPoints;
+        }
+
+        require(points > 0, ILock.ILock__Error("Insufficient points to claim"));
+        lastClaims[msg.sender] = block.timestamp;
+        iPoints.mint(msg.sender, points);
+        emit ILock.PointsClaimed(msg.sender, points);
     }
 
     /// @notice Pause the contract, preventing further locking actions
@@ -102,23 +130,32 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
+    /**
+     * @notice Owner can update minToLock config
+     * @param _minToLock value to be updated
+     * @dev This function can only be called by the contract owner.
+     */
     function updateMinToLock(uint256 _minToLock) external onlyOwner nonReentrant {
         minToLock = _minToLock;
     }
 
+    /**
+     * @notice This function updates the multipliers used to calculate lockup rewards for different lockup durations (3, 6, 9, and 12 months).
+     * @param multiplier3x The new multiplier for the 3-month lockup.
+     * @param multiplier6x The new multiplier for the 6-month lockup.
+     * @param multiplier9x The new multiplier for the 9-month lockup.
+     * @param multiplier12x The new multiplier for the 12-month lockup.
+     * @dev This function can only be called by the contract owner. It reverts if any of the new multipliers are less than to the corresponding stored multiplier.
+     */
     function updateMultipliers(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x)
         external
         onlyOwner
     {
-        // SLK-02M: Insufficient Validation of Multipliers - OK
-        // The new multipliers must be higher than before to keep consistency, improving also the validation as recommended
-
-        if (
-            multiplier3x <= multipliers[THREE_MONTHS] || multiplier6x <= multipliers[SIX_MONTHS]
-                || multiplier9x <= multipliers[NINE_MONTHS] || multiplier12x <= multipliers[TWELVE_MONTHS]
-        ) {
-            revert ILock.SamLock__InvalidMultiplier();
-        }
+        require(
+            multiplier3x > multipliers[THREE_MONTHS] || multiplier6x > multipliers[SIX_MONTHS]
+                || multiplier9x > multipliers[NINE_MONTHS] || multiplier12x > multipliers[TWELVE_MONTHS],
+            ILock.ILock__Error("Invalid multiplier")
+        );
 
         multipliers[THREE_MONTHS] = multiplier3x;
         multipliers[SIX_MONTHS] = multiplier6x;
@@ -128,42 +165,38 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         emit ILock.MultipliersUpdated(multiplier3x, multiplier6x, multiplier9x, multiplier12x);
     }
 
-    /// @notice Retrieve all lock information entries for a specific user (address)
-    /// @param wallet Address of the user
-    /// @return lockInfos Array containing the user's lock information entries
-    /// @dev Reverts with ILock.SamLock__NotFound if there are no lock entries for the user
+    /**
+     * @notice Retrieve all lock information entries for a specific user (address)
+     * @dev Reverts with ILock.SamLock__NotFound if there are no lock entries for the user
+     * @param wallet Address of the user
+     * @return lockInfos Array containing the user's lock information entries
+     */
     function getLockInfos(address wallet) public view returns (ILock.LockInfo[] memory) {
         return lockings[wallet];
     }
 
-    /// @notice Calculate the total points earned for a specific lock entry
-    /// @param wallet Address of the user
-    /// @param lockIndex Index of the lock information entry for the user
-    /// @return points Total points earned for the specific lock entry (uint256)
-    /// @dev Reverts with ILock.SamLock__InvalidLockIndex if the lock index is out of bounds
+    /**
+     * @notice Calculate the total points earned for a specific lock entry
+     * @param wallet Address of the user
+     * @param lockIndex Index of the lock information entry for the user
+     * @return points Total points earned for the specific lock entry (uint256)
+     * @dev Reverts with ILock.SamLock__InvalidLockIndex if the lock index is out of bounds
+     */
     function pointsByLock(address wallet, uint256 lockIndex) public view returns (uint256 points) {
-        if (lockIndex >= lockings[wallet].length) revert ILock.SamLock__InvalidLockIndex();
+        require(lockIndex < lockings[wallet].length, ILock.ILock__Error("Invalid lock index"));
 
         ILock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
-
-        // SLK-01M: Inexistent Retroactive Application of Multipliers - OK
-        // The multiplier is now loading the latest multiplier based in lockPeriod selected by the user
-        // enabling fair leverage of multipliers updates for old lockers
         UD60x18 multiplier = ud(multipliers[lockInfo.lockPeriod]);
-        UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier);
+        UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier).sub(ud(lockInfo.claimedPoints));
 
         if (block.timestamp >= lockInfo.unlockTime) {
             points = maxPointsToEarn.intoUint256();
             return points;
         }
 
-        // SLK-02C: Redundant Conditional - OK
-        // The useless condition was removed as recommended
         uint256 elapsedTime = block.timestamp - lockInfo.lockedAt;
 
         if (elapsedTime > 0) {
-            // SLK-01S: Illegible Numeric Value Representation - OK
-            // The number was separated by _ as recommended
             UD60x18 oneDay = ud(86_400e18);
             UD60x18 periodInDays = convert(lockInfo.lockPeriod).div(oneDay);
             UD60x18 pointsPerDay = maxPointsToEarn.div(periodInDays);

@@ -3,7 +3,6 @@ pragma solidity 0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {SamuraiPoints} from "../src/SamuraiPoints.sol";
-import {DeployIDO} from "../script/DeployIDO.s.sol";
 import {console} from "forge-std/console.sol";
 
 contract DeploySamuraiPoints is Script {

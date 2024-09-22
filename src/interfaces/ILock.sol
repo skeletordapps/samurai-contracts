@@ -11,11 +11,13 @@ interface ILock {
         uint256 lockedAt;
         uint256 unlockTime;
         uint256 lockPeriod;
+        uint256 claimedPoints;
     }
 
     event Locked(address indexed wallet, uint256 amount, uint256 lockIndex);
     event Withdrawn(address indexed wallet, uint256 amount, uint256 lockIndex);
     event MultipliersUpdated(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x);
+    event PointsClaimed(address indexed wallet, uint256 amount);
 
     error SamLock__NotFound();
     error SamLock__InsufficientAmount();
@@ -24,4 +26,5 @@ interface ILock {
     error SamLock__Cannot_Unlock_Before_Period();
     error SamLock__InvalidMultiplier();
     error SamLock__InvalidAddress();
+    error ILock__Error(string message);
 }
