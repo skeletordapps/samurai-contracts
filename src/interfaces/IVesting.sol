@@ -12,7 +12,7 @@ interface IVesting {
     event TokensSet(address[] acceptedTokens);
     event PeriodsSet(Periods periods);
     event TokensFilled(address indexed wallet, uint256 amount);
-    event Refunded(address indexed wallet, uint256 amount);
+    event NeedRefund(address[] walletsToRefund);
     event Claimed(address indexed wallet, uint256 claimedAmount);
     event IDOTokenSet(address indexed token);
     event RemainingTokensWithdrawal(uint256 amount);

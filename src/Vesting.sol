@@ -20,6 +20,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     address public token;
     IVesting.VestingType public vestingType;
     IVesting.Periods public periods;
+    address[] public walletsToRefund;
 
     mapping(address wallet => uint256 purchased) public purchases;
     mapping(address wallet => bool tgeClaimed) public hasClaimedTGE;
@@ -182,6 +183,13 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         emit IVesting.RemainingTokensWithdrawal(balance);
     }
 
+    function askForRefund() external nonReentrant {
+        require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
+
+        walletsToRefund.push(msg.sender);
+        emit IVesting.NeedRefund(walletsToRefund);
+    }
+
     /**
      * @dev Pauses all token transfers.
      * Can only be called by the contract owner.
@@ -292,6 +300,10 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         IVesting.Periods memory periodsCopy = periods;
         // return cliffEndsAt() + periodsCopy.vestingDuration;
         return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periodsCopy.vestingDuration);
+    }
+
+    function getWalletsToRefund() public view returns (address[] memory) {
+        return walletsToRefund;
     }
 
     /**

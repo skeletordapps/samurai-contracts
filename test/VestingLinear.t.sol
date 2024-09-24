@@ -382,6 +382,50 @@ contract VestingLinearTest is Test {
         _;
     }
 
+    function testRevertAskRefundWhenClaimedTGE()
+        external
+        periodsSet(8, block.timestamp + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+        purchasesSet
+        tgeClaimed(bob)
+    {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Not refundable"));
+        vesting.askForRefund();
+        vm.stopPrank();
+    }
+
+    function testCanAskForRefund()
+        external
+        periodsSet(8, block.timestamp + 2 days, 1)
+        idoTokenSet
+        idoTokenFilled(false)
+        purchasesSet
+    {
+        vm.warp(vestingAt + 1 days);
+
+        vm.startPrank(bob);
+        vesting.askForRefund();
+        vm.stopPrank();
+
+        address[] memory walletsToRefund = vesting.getWalletsToRefund();
+        assertEq(walletsToRefund.length, 1);
+
+        address[] memory expectedList = new address[](2);
+        expectedList[0] = bob;
+        expectedList[1] = mary;
+
+        vm.startPrank(mary);
+        vm.expectEmit();
+        emit IVesting.NeedRefund(expectedList);
+        vesting.askForRefund();
+        vm.stopPrank();
+
+        walletsToRefund = vesting.getWalletsToRefund();
+        assertEq(walletsToRefund.length, 2);
+    }
+
     function testCanClaimTGEPlusLinearVestedInPeriod()
         external
         periodsSet(8, block.timestamp + 2 days, 1)
@@ -494,20 +538,6 @@ contract VestingLinearTest is Test {
         vesting.emergencyWithdrawByWallet(bob);
         vm.stopPrank();
     }
-
-    // /// FIXING
-    // function testRevertEmergencyWithdrawByWalletWhenHasNoAllocation()
-    //     external
-    // periodsSet(8, block.timestamp + 2 days, 1)
-    //     idoTokenSet
-    //     idoTokenFilled(false)
-    // {
-    //     vm.warp(vesting.vestingEndsAt() + 1 hours);
-    //     vm.startPrank(owner);
-    //     vm.expectRevert(abi.encodeWithSelector(Vesting.Vesting__Unauthorized.selector, "Wallet has no allocation"));
-    //     vesting.emergencyWithdrawByWallet(bob);
-    //     vm.stopPrank();
-    // }
 
     function testCanEmergencyWithdrawByWallet()
         external
