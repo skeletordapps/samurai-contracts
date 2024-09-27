@@ -11,7 +11,7 @@
 // import {IGauge} from "../src/interfaces/IGauge.sol";
 // import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 
-// contract LPStakingTest is Test {
+// contract LPStakingV2Test is Test {
 //     uint256 fork;
 //     string public RPC_URL;
 
@@ -20,6 +20,7 @@
 //     address lpToken;
 //     address rewardsToken;
 //     address gauge;
+//     address gaugeRewardsToken;
 
 //     address owner;
 //     address bob;
@@ -34,8 +35,7 @@
 //         vm.selectFork(fork);
 
 //         deployer = new DeployLPStaking();
-//         bool isFork = true;
-//         (staking, lpToken, rewardsToken, gauge) = deployer.run(isFork);
+//         (staking, lpToken, rewardsToken, gauge, gaugeRewardsToken) = deployer.run();
 //         owner = staking.owner();
 //         bob = vm.addr(1);
 //         vm.label(bob, "bob");
@@ -44,6 +44,8 @@
 //         vm.label(mary, "mary");
 
 //         minPerWallet = staking.minPerWallet();
+
+//         deal(rewardsToken, address(staking), 100 ether);
 //     }
 
 //     // CONSTRUCTOR
@@ -72,22 +74,22 @@
 
 //     // INIT
 
-//     modifier initialized(uint256 duration) {
+//     modifier initialized(uint256 duration, uint256 rewardsPerDay) {
 //         vm.startPrank(owner);
-//         staking.init(duration);
+//         staking.init(duration, rewardsPerDay);
 //         vm.stopPrank();
 //         _;
 //     }
 
-//     function testCanInit() external initialized(period) {
+//     function testCanInit() external initialized(period, 10 ether) {
 //         assertEq(staking.periodFinish(), block.timestamp + period);
 //         assertFalse(staking.paused());
 //     }
 
-//     function testRevertWhenAlreadyInitialized() external initialized(period) {
+//     function testRevertWhenAlreadyInitialized() external initialized(period, 10 ether) {
 //         vm.startPrank(owner);
 //         vm.expectRevert(Pausable.ExpectedPause.selector);
-//         staking.init(period);
+//         staking.init(period, 10 ether);
 //         vm.stopPrank();
 //     }
 
@@ -98,41 +100,41 @@
 
 //     // STAKING
 
-//     function testRevertStakeWhenPeriodFinished() external initialized(period) {
+//     function testRevertStakeWhenPeriodFinished() external initialized(period, 10 ether) {
 //         vm.warp(staking.periodFinish() + 1 minutes);
 
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_Period_Ended.selector);
-//         staking.stake(bob, 1 ether);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.stake(1 ether);
 //         vm.stopPrank();
 //     }
 
-//     function testRevertWhenAmountIsZero() external initialized(period) {
+//     function testRevertWhenAmountIsZero() external initialized(period, 10 ether) {
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_Insufficient_Amount.selector);
-//         staking.stake(bob, 0);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.stake(0);
 //         vm.stopPrank();
 //     }
 
 //     function testRevertWhenAmountExceedsMaxAmounToStake()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, staking.MAX_ALLOWED_TO_STAKE() + minPerWallet)
 //     {
 //         uint256 amount = staking.MAX_ALLOWED_TO_STAKE() + minPerWallet;
 
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_Max_Limit_Reached.selector);
-//         staking.stake(bob, amount);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.stake(amount);
 //         vm.stopPrank();
 //     }
 
-//     function testCanStake() external initialized(period) hasBalance(bob, minPerWallet) {
+//     function testCanStake() external initialized(period, 10 ether) hasBalance(bob, minPerWallet) {
 //         vm.startPrank(bob);
 //         ERC20(lpToken).approve(address(staking), minPerWallet);
 //         vm.expectEmit(true, true, true, true);
 //         emit ILPStaking.Staked(bob, minPerWallet);
-//         staking.stake(bob, minPerWallet);
+//         staking.stake(minPerWallet);
 //         vm.stopPrank();
 
 //         (uint256 lockedAmount, uint256 lastUpdate, uint256 rewardsClaimed, uint256 rewardsEarned) =
@@ -149,7 +151,7 @@
 //     modifier hasStaked(address wallet, uint256 amount) {
 //         vm.startPrank(wallet);
 //         ERC20(lpToken).approve(address(staking), amount);
-//         staking.stake(wallet, amount);
+//         staking.stake(amount);
 //         vm.stopPrank();
 //         _;
 //     }
@@ -158,38 +160,38 @@
 
 //     function testRevertWithdrawIfAmountIsZero()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_Insufficient_Amount.selector);
-//         staking.withdraw(bob, 0);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.withdraw(0);
 //         vm.stopPrank();
 //     }
 
-//     function testRevertWhenHasNoBalanceStaked() external initialized(period) {
+//     function testRevertWhenHasNoBalanceStaked() external initialized(period, 10 ether) {
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_No_Balance_Staked.selector);
-//         staking.withdraw(bob, minPerWallet);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.withdraw(minPerWallet);
 //         vm.stopPrank();
 //     }
 
 //     function testRevertWithdrawIfAmountIsGreaterThanStakedBalance()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_Amount_Exceeds_Balance.selector);
-//         staking.withdraw(bob, minPerWallet * 2);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
+//         staking.withdraw(minPerWallet * 2);
 //         vm.stopPrank();
 //     }
 
 //     function testCanWithdrawStakedBalance()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
@@ -201,7 +203,7 @@
 //         vm.startPrank(bob);
 //         vm.expectEmit(true, true, true, true);
 //         emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
-//         staking.withdraw(bob, minPerWallet);
+//         staking.withdraw(minPerWallet);
 //         vm.stopPrank();
 
 //         (uint256 lockedAmount,,, uint256 rewardsEarned) = staking.stakings(bob);
@@ -214,7 +216,7 @@
 
 //     function testPayTaxToWithdrawEarlier()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
@@ -226,7 +228,7 @@
 //         vm.startPrank(bob);
 //         vm.expectEmit(true, true, true, false);
 //         emit ILPStaking.StakeWithdrawn(bob, minPerWallet - tax);
-//         staking.withdraw(bob, minPerWallet);
+//         staking.withdraw(minPerWallet);
 //         vm.stopPrank();
 
 //         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
@@ -236,7 +238,7 @@
 
 //     function testCanWithdrawAfterPeriodFinish()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
@@ -247,7 +249,7 @@
 //         vm.startPrank(bob);
 //         vm.expectEmit(true, true, true, true);
 //         emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
-//         staking.withdraw(bob, minPerWallet);
+//         staking.withdraw(minPerWallet);
 //         vm.stopPrank();
 
 //         (uint256 lockedAmount,,, uint256 rewardsEarned) = staking.stakings(bob);
@@ -260,7 +262,7 @@
 
 //     function testCanWithdrawAfterEmergencyWithdraw()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
@@ -278,7 +280,7 @@
 //         vm.startPrank(bob);
 //         vm.expectEmit(true, true, true, true);
 //         emit ILPStaking.StakeWithdrawn(bob, minPerWallet);
-//         staking.withdraw(bob, minPerWallet);
+//         staking.withdraw(minPerWallet);
 //         vm.stopPrank();
 
 //         (uint256 endLockedAmount,,,) = staking.stakings(bob);
@@ -295,7 +297,7 @@
 //         if (timestamp > 0) vm.warp(block.timestamp + timestamp);
 
 //         vm.startPrank(wallet);
-//         staking.withdraw(wallet, amount);
+//         staking.withdraw(amount);
 //         vm.stopPrank();
 //         _;
 //     }
@@ -304,7 +306,7 @@
 
 //     function testCanCheckRewards()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasBalance(mary, minPerWallet)
 //         hasStaked(bob, minPerWallet)
@@ -335,30 +337,30 @@
 
 //     // CLAIM REWARDS
 
-//     function testRevertClaimStakeWhenTotalRewardsIsZero() external initialized(period) {
+//     function testRevertClaimStakeWhenTotalRewardsIsZero() external initialized(period, 10 ether) {
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_No_Rewards_Available.selector);
-//         staking.claimRewards(bob);
+//         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "No rewards available"));
+//         staking.claimRewards();
 //         vm.stopPrank();
 //     }
 
 //     function testRevertClaimStakeWhenWalletRewardsAreZero()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
 //         vm.warp(block.timestamp + 2 days);
 
 //         vm.startPrank(bob);
-//         vm.expectRevert(ILPStaking.Staking_No_Rewards_Available.selector);
-//         staking.claimRewards(mary);
+//         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "No rewards available"));
+//         staking.claimRewards();
 //         vm.stopPrank();
 //     }
 
 //     function testCanClaimRewards()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasStaked(bob, minPerWallet)
 //     {
@@ -369,7 +371,7 @@
 //         vm.startPrank(bob);
 //         vm.expectEmit(true, true, true, true);
 //         emit ILPStaking.RewardsClaimed(block.timestamp, bob, initialRewards);
-//         staking.claimRewards(bob);
+//         staking.claimRewards();
 //         vm.stopPrank();
 
 //         uint256 zeroRewards = staking.calculateRewards(bob);
@@ -383,7 +385,7 @@
 
 //     function testCanClaimFees()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasBalance(mary, minPerWallet)
 //         hasStaked(bob, minPerWallet)
@@ -414,7 +416,7 @@
 
 //     function testCanDoEmergencyWithdraw()
 //         external
-//         initialized(period)
+//         initialized(period, 10 ether)
 //         hasBalance(bob, minPerWallet)
 //         hasBalance(mary, minPerWallet)
 //         hasStaked(bob, minPerWallet)
@@ -435,7 +437,7 @@
 
 //     // UPDATE SENSTIVE DATA
 
-//     function testUpdateWithdrawEarlierFeeLockTime() external initialized(period) {
+//     function testUpdateWithdrawEarlierFeeLockTime() external initialized(period, 10 ether) {
 //         vm.startPrank(owner);
 //         uint256 newLockTime = staking.withdrawEarlierFeeLockTime() * 2;
 //         staking.updateWithdrawEarlierFeeLockTime(newLockTime);
@@ -444,7 +446,7 @@
 //         assertEq(staking.withdrawEarlierFeeLockTime(), newLockTime);
 //     }
 
-//     function testUpdateWithdrawEarlierFee() external initialized(period) {
+//     function testUpdateWithdrawEarlierFee() external initialized(period, 10 ether) {
 //         vm.startPrank(owner);
 //         uint256 newFee = staking.withdrawEarlierFee().intoUint256() * 2;
 //         staking.updateWithdrawEarlierFee(newFee);
@@ -453,14 +455,14 @@
 //         assertEq(staking.withdrawEarlierFee().intoUint256(), newFee);
 //     }
 
-//     function testRevertUpdateMinPerWalletWhenZero() external initialized(period) {
+//     function testRevertUpdateMinPerWalletWhenZero() external initialized(period, 10 ether) {
 //         vm.startPrank(owner);
-//         vm.expectRevert(ILPStaking.Staking_Insufficient_Amount.selector);
+//         vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
 //         staking.updateMinPerWallet(0);
 //         vm.stopPrank();
 //     }
 
-//     function testUpdateMinPerWallet() external initialized(period) {
+//     function testUpdateMinPerWallet() external initialized(period, 10 ether) {
 //         vm.startPrank(owner);
 //         uint256 newMinPerWallet = staking.minPerWallet() * 2;
 //         staking.updateMinPerWallet(newMinPerWallet);
