@@ -20,6 +20,7 @@ interface ILPStaking {
     event Withdrawn(address indexed wallet, uint256 amount, uint256 lockIndex);
     event MultipliersUpdated(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x);
     event PointsClaimed(address indexed wallet, uint256 amount);
+    event RewardsClaimed(address indexed wallet, uint256 amount);
 
     error ILPStaking__Error(string message);
 }

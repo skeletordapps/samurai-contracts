@@ -17,6 +17,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
     uint256 public totalPurchased;
     uint256 public tgeReleasePercent;
+    bool public purchasesSet;
     address public token;
     IVesting.VestingType public vestingType;
     IVesting.Periods public periods;
@@ -135,6 +136,12 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         onlyOwner
         nonReentrant
     {
+        require(
+            wallets.length == tokensPurchased.length,
+            IVesting.IVesting__Unauthorized("wallets and tokensPurchased should have same size length")
+        );
+        require(!purchasesSet, IVesting.IVesting__Unauthorized("Purchases already set"));
+
         for (uint256 i = 0; i < wallets.length; i++) {
             require(wallets[i] != address(0), IVesting.IVesting__Invalid("Invalid address"));
             require(tokensPurchased[i] > 0, IVesting.IVesting__Invalid("Invalid amount permitted"));
@@ -143,6 +150,9 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
             purchases[wallet] = tokensPurchased[i];
         }
+
+        purchasesSet = true;
+        emit IVesting.PurchasesSet(wallets, tokensPurchased);
     }
 
     /**
@@ -347,7 +357,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
         if (vestingType == IVesting.VestingType.CliffVesting) {
             /// CLIFF VESTING  =====================================================
-
             return maxOfTokens;
         } else {
             uint256 _vestingEndsAt = vestingEndsAt();

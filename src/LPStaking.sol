@@ -15,6 +15,8 @@ import {IGauge} from "./interfaces/IGauge.sol";
 contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
+    uint256 public constant MAX_STAKES_PER_WALLET = 5;
+
     // Define lock periods (in seconds)
     uint256 public constant THREE_MONTHS = 3 * 30 days;
     uint256 public constant SIX_MONTHS = 6 * 30 days;
@@ -56,6 +58,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      * @param stakePeriod Stake period chosen by the user (THREE_MONTHS, SIX_MONTHS, NINE_MONTHS, TWELVE_MONTHS)
      */
     function stake(uint256 amount, uint256 stakePeriod) external nonReentrant whenNotPaused {
+        require(stakes[msg.sender].length < MAX_STAKES_PER_WALLET, ILPStaking.ILPStaking__Error("Max stakes reached"));
         require(amount >= minToStake, ILPStaking.ILPStaking__Error("Insufficient amount"));
         require(
             stakePeriod == THREE_MONTHS || stakePeriod == SIX_MONTHS || stakePeriod == NINE_MONTHS
@@ -134,12 +137,12 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     function claimPoints() external nonReentrant {
         require(block.timestamp > lastClaims[msg.sender], ILPStaking.ILPStaking__Error("Unallowed to claim right now"));
         uint256 points;
-        ILPStaking.StakeInfo[] memory walletStakes = stakes[msg.sender];
+        ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
 
         for (uint256 i = 0; i < walletStakes.length; i++) {
             uint256 stakePoints = pointsByStake(msg.sender, walletStakes[i].stakeIndex);
             points += stakePoints;
-            stakes[msg.sender][i].claimedPoints = stakePoints;
+            walletStakes[i].claimedPoints = stakePoints;
         }
 
         require(points > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
@@ -149,17 +152,27 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     }
 
     function claimRewards() external nonReentrant {
-        uint256 rewards;
-        ILPStaking.StakeInfo[] memory walletStakes = stakes[msg.sender];
+        uint256 totalRewards;
+        ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
 
         for (uint256 i = 0; i < walletStakes.length; i++) {
-            uint256 stakeRewards = rewardsByStake(msg.sender, walletStakes[i].stakeIndex);
-            rewards += stakeRewards;
-            stakes[msg.sender][i].claimedRewards = stakeRewards;
+            uint256 stakeRewards = rewardsByStake(msg.sender, i);
+            if (stakeRewards > 0) {
+                totalRewards += stakeRewards;
+                walletStakes[i].claimedRewards += stakeRewards;
+                walletStakes[i].lastRewardsClaimedAt = block.timestamp;
+            }
         }
 
-        require(rewards > 0, ILPStaking.ILPStaking__Error("Insufficient rewards to claim"));
-        rewardsToken.safeTransfer(msg.sender, rewards);
+        require(totalRewards > 0, ILPStaking.ILPStaking__Error("Insufficient rewards to claim"));
+
+        // Claim rewards from the gauge
+        gauge.getReward(address(this));
+
+        // Transfer rewards to the user
+        rewardsToken.safeTransfer(msg.sender, totalRewards);
+
+        emit ILPStaking.RewardsClaimed(msg.sender, totalRewards);
     }
 
     /// @notice Pause the contract, preventing further locking actions
@@ -278,27 +291,17 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
 
-        if (block.timestamp < stakeInfo.withdrawTime) return 0;
-
-        uint256 elapsedTime = block.timestamp - stakeInfo.stakedAt;
-
-        // Total in rewards
+        // Calculate total rewards earned by the contract
         UD60x18 totalRewards = ud(gauge.earned(address(this)));
 
-        // Reward Rate = Total Rewards Available / Total Staked Amount
-        UD60x18 rewardRate = totalRewards.div(ud(totalStaked).sub(ud(totalWithdrawn)));
+        // Calculate the proportion of total staked amount that belongs to this stake
+        UD60x18 stakeProportion = ud(stakeInfo.stakedAmount).div(ud(totalStaked));
 
-        // Reward = Amount Staked * Reward Rate * Elapsed Time
-        rewards = ud(stakeInfo.stakedAmount).sub(ud(stakeInfo.withdrawnAmount)).mul(rewardRate).intoUint256();
+        // Calculate rewards for this stake
+        UD60x18 stakeRewards = totalRewards.mul(stakeProportion);
 
-        // if (elapsedTime > 0) {
-        //     UD60x18 oneDay = ud(86_400e18);
-        //     UD60x18 periodInDays = convert(stakeInfo.stakePeriod).div(oneDay);
-        //     UD60x18 pointsPerDay = maxPointsToEarn.div(periodInDays);
-        //     UD60x18 elapsedDays = convert(elapsedTime).div(oneDay);
-
-        //     rewards = pointsPerDay.mul(elapsedDays).intoUint256();
-        // }
+        // Subtract already claimed rewards
+        rewards = stakeRewards.sub(ud(stakeInfo.claimedRewards)).intoUint256();
 
         return rewards;
     }

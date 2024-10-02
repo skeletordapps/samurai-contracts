@@ -16,7 +16,7 @@ interface IVesting {
     event Claimed(address indexed wallet, uint256 claimedAmount);
     event IDOTokenSet(address indexed token);
     event RemainingTokensWithdrawal(uint256 amount);
-
+    event PurchasesSet(address[] wallets, uint256[] tokensPurchased);
     /// Enums
 
     enum VestingType {
