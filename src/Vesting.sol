@@ -10,7 +10,6 @@ import {IVesting} from "./interfaces/IVesting.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
-import {console} from "forge-std/console.sol";
 
 contract Vesting is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
