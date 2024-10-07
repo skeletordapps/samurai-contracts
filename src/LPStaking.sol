@@ -32,7 +32,10 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalWithdrawn;
     uint256 public nextStakeIndex;
 
-    mapping(address wallet => ILPStaking.StakeInfo[]) public stakes;
+    uint256 public collectedFees;
+    UD60x18 public withdrawEarlierFee = ud(0.1e18);
+
+    mapping(address wallet => ILPStaking.StakeInfo[] stakes) public stakes;
     mapping(uint256 period => uint256 multiplier) public multipliers;
     mapping(address wallet => uint256 claimedAt) lastClaims;
 
@@ -102,11 +105,13 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     function withdraw(uint256 amount, uint256 stakeIndex) external nonReentrant {
         require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
 
+        require(stakeIndex < stakes[msg.sender].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
         ILPStaking.StakeInfo storage stakeInfo = stakes[msg.sender][stakeIndex];
 
-        require(
-            block.timestamp >= stakeInfo.withdrawTime, ILPStaking.ILPStaking__Error("Cannot withdraw before period")
-        );
+        // require(
+        //     block.timestamp >= stakeInfo.withdrawTime,
+        //     ILPStaking.ILPStaking__Error("Cannot withdraw before period ends")
+        // );
         require(
             amount <= stakeInfo.stakedAmount - stakeInfo.withdrawnAmount,
             ILPStaking.ILPStaking__Error("Insufficient amount")
@@ -115,7 +120,13 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         uint256 gaugeBalance = IGauge(gauge).balanceOf(address(this));
         require(amount <= gaugeBalance, ILPStaking.ILPStaking__Error("Exceeds balance"));
 
-        stakeInfo.withdrawnAmount += amount;
+        uint256 fee;
+        if (block.timestamp < stakeInfo.withdrawTime) {
+            fee = getFees(amount);
+            collectedFees += fee;
+        }
+
+        stakeInfo.withdrawnAmount += amount - fee;
         totalStaked -= amount;
         totalWithdrawn += amount;
         emit ILPStaking.Withdrawn(msg.sender, amount, stakeIndex);
@@ -173,6 +184,15 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         rewardsToken.safeTransfer(msg.sender, totalRewards);
 
         emit ILPStaking.RewardsClaimed(msg.sender, totalRewards);
+    }
+
+    function collectFees() external onlyOwner nonReentrant {
+        uint256 fees = collectedFees;
+        collectedFees = 0;
+        emit ILPStaking.FeesWithdrawn(fees);
+
+        gauge.withdraw(fees);
+        ERC20(lpToken).safeTransfer(owner(), fees);
     }
 
     /// @notice Pause the contract, preventing further locking actions
@@ -304,5 +324,9 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         rewards = stakeRewards.sub(ud(stakeInfo.claimedRewards)).intoUint256();
 
         return rewards;
+    }
+
+    function getFees(uint256 _amount) public view returns (uint256) {
+        return ud(_amount).mul(withdrawEarlierFee).intoUint256();
     }
 }

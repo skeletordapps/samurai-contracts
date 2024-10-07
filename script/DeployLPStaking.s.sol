@@ -38,10 +38,9 @@ contract DeployLPStaking is Script {
         rewardsToken = vm.envAddress("BASE_REWARDS_TOKEN_ADDRESS");
         gauge = vm.envAddress("BASE_GAUGE_ADDRESS");
 
-        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
-        uint256 minToStake = 30_000 ether;
+        uint256 minToStake = 0.000001 ether;
 
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast();
 
         SamuraiPoints sp = new SamuraiPoints();
         points = address(sp);
