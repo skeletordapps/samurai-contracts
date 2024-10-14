@@ -16,7 +16,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
     uint256 public totalPurchased;
     uint256 public tgeReleasePercent;
-    bool public purchasesSet;
     address public token;
     IVesting.VestingType public vestingType;
     IVesting.Periods public periods;
@@ -29,22 +28,34 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Sets the initial configuration for the IDO contract.
+     * @dev Reverts if the token address is invalid, total purchased is zero, TGE release percent is zero or vesting type is invalid.
+     * @param _token IDO token address.
      * @param _totalPurchased total amount of tokens purchased by users.
      * @param _tgeReleasePercent TGE release percent.
+     * @param _vestingType Type of vesting schedule.
      * @param _periods Struct containing initial periods configuration: registration start, participation start/end, TGE vesting at.
+     * @param _wallets List of wallets addresses.
+     * @param _tokensPurchased List of tokens purchased by wallets.
      */
     constructor(
+        address _token,
         uint256 _totalPurchased,
         uint256 _tgeReleasePercent,
         IVesting.VestingType _vestingType,
-        IVesting.Periods memory _periods
+        IVesting.Periods memory _periods,
+        address[] memory _wallets,
+        uint256[] memory _tokensPurchased
     ) Ownable(msg.sender) {
-        require(_tgeReleasePercent > 0, IVesting.IVesting__Invalid("TGE release percent should be greater than 0"));
+        require(_token != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
+        require(_totalPurchased > 0, IVesting.IVesting__Unauthorized("No purchases"));
+        require(uint256(_vestingType) < 3, IVesting.IVesting__Invalid("Invalid vesting type"));
 
+        token = _token;
         totalPurchased = _totalPurchased;
-        tgeReleasePercent = _tgeReleasePercent;
+        tgeReleasePercent = _tgeReleasePercent; // this can be zero
         vestingType = _vestingType;
-        setPeriods(_periods);
+        _setPeriods(_periods);
+        _setPurchases(_wallets, _tokensPurchased);
     }
 
     /**
@@ -68,10 +79,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev This function is used to fill IDO tokens in the contract.
      * emit IDOTokenFilled(msg.sender, amount) Emitted when IDO tokens are deposited.
      */
-    function fillIDOToken(uint256 amount) external {
-        require(token != address(0), IVesting.IVesting__Unauthorized("IDO token not set"));
-        require(totalPurchased > 0, IVesting.IVesting__Unauthorized("No purchases"));
-
+    function fillIDOToken(uint256 amount) external whenNotPaused nonReentrant {
         require(
             ERC20(token).balanceOf(address(this)) + amount <= totalPurchased,
             IVesting.IVesting__Unauthorized("Unable to receive more IDO tokens")
@@ -87,7 +95,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It calculates the claimable amount based on the user's tier and participation.
      * emit Claimed(msg.sender, amount) Emitted when a user successfully claims their IDO tokens.
      */
-    function claim() external canClaimTokens nonReentrant {
+    function claim() external canClaimTokens whenNotPaused nonReentrant {
         uint256 claimable = previewClaimableTokens(msg.sender);
         require(claimable > 0, IVesting.IVesting__Unauthorized("There is no vested tokens available to claim"));
 
@@ -104,65 +112,12 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Sets the IDO token address.
-     * @dev Only the owner can call this function. Sets the `token` address to the provided `_token` address.
-     *  Reverts if the token address is already set.
-     *
-     * Emits:
-     *  IDOTokenSet(address indexed newToken)
-     *
-     * Requirements:
-     *  - The caller must be the owner.
-     *  - The token address must be zero.
-     *
-     * Parameters:
-     *  _token: The new IDO token address.
-     */
-    function setIDOToken(address _token) external onlyOwner nonReentrant {
-        require(token == address(0), IVesting.IVesting__Unauthorized("Token already set"));
-        token = _token;
-
-        emit IVesting.IDOTokenSet(_token);
-    }
-
-    /**
-     * @notice Alows owner to set the list of wallets and it's purchases to be vested based on contract strategy
-     * @param wallets list of wallets
-     * @param tokensPurchased list of amounts of tokens purchased
-     */
-    function setAllPurchases(address[] calldata wallets, uint256[] calldata tokensPurchased)
-        external
-        onlyOwner
-        nonReentrant
-    {
-        require(
-            wallets.length == tokensPurchased.length,
-            IVesting.IVesting__Unauthorized("wallets and tokensPurchased should have same size length")
-        );
-        require(!purchasesSet, IVesting.IVesting__Unauthorized("Purchases already set"));
-
-        for (uint256 i = 0; i < wallets.length; i++) {
-            require(wallets[i] != address(0), IVesting.IVesting__Invalid("Invalid address"));
-            require(tokensPurchased[i] > 0, IVesting.IVesting__Invalid("Invalid amount permitted"));
-
-            address wallet = wallets[i];
-
-            purchases[wallet] = tokensPurchased[i];
-        }
-
-        purchasesSet = true;
-        emit IVesting.PurchasesSet(wallets, tokensPurchased);
-    }
-
-    /**
      * @notice Allows the contract owner to withdraw remaining IDO tokens of a specific wallet.
      * This feature is designed to help participators with problems in it's wallets.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     * It reverts if the IDO token address is not set or there are no tokens to claim.
      * emit Claimed(wallet, balance) Emitted when remaining IDO tokens are withdrawn.
      */
-    function emergencyWithdrawByWallet(address wallet) external onlyOwner nonReentrant {
-        require(token != address(0), IVesting.IVesting__Unauthorized("Token not set"));
+    function emergencyWithdrawByWallet(address wallet) external onlyOwner whenNotPaused nonReentrant {
         require(block.timestamp > vestingEndsAt(), IVesting.IVesting__Unauthorized("Vesting is ongoing"));
 
         uint256 allocation = purchases[wallet];
@@ -180,11 +135,10 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @notice Allows the contract owner to withdraw remaining IDO tokens.
      * This feature is designed to help with problems and edge cases.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     * It reverts if the IDO token address is not set or there are no tokens to withdraw.
+     * It reverts if there are no tokens to withdraw.
      * emit RemainingTokensWithdrawal(balance) Emitted when remaining IDO tokens are withdrawn.
      */
     function emergencyWithdraw() external onlyOwner nonReentrant {
-        require(token != address(0), IVesting.IVesting__Unauthorized("Token not set"));
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance > 0, IVesting.IVesting__Unauthorized("Nothing to withdraw"));
 
@@ -192,7 +146,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         emit IVesting.RemainingTokensWithdrawal(balance);
     }
 
-    function askForRefund() external nonReentrant {
+    function askForRefund() external whenNotPaused nonReentrant {
         require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
 
         walletsToRefund.push(msg.sender);
@@ -213,48 +167,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     function unpause() public onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @notice Allows the contract owner to set the different time periods for the IDO process.
-     * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     *       It performs various validations to ensure proper configuration of periods.
-     * @param _periods Struct containing configuration for the IDO periods:
-     *                  - registrationAt: Time when registration starts.
-     *                  - participationStartsAt: Time when participation starts.
-     *                  - participationEndsAt: Time when participation ends.
-     *                  - vestingAt: Time when vesting starts.
-     *                  - cliff: Cliff period after TGE before vesting starts.
-     *                  - releaseType: Type of token release schedule (e.g., cliff and vesting, linear release).
-     */
-    function setPeriods(IVesting.Periods memory _periods) public onlyOwner nonReentrant {
-        IVesting.Periods memory periodsCopy = periods;
-
-        /// When vestingDuration is already set
-        /// New vestingDuration must be greater or equal than current vestingDuration
-        if (periodsCopy.vestingDuration > 0) {
-            require(
-                _periods.vestingDuration >= periodsCopy.vestingDuration,
-                IVesting.IVesting__Invalid("New vestingDuration must be greater or equal than vestingDuration")
-            );
-        }
-
-        /// When vestingAt is already set
-        /// New vestingAt must be greater or equal than current vestingAt
-        /// New vestingAt must be greater or equal new participationEndsAt
-        if (periodsCopy.vestingAt > 0) {
-            require(
-                _periods.vestingAt >= periodsCopy.vestingAt,
-                IVesting.IVesting__Invalid("New vestingAt value must be greater or equal current vestingAt value")
-            );
-        }
-
-        if (periodsCopy.cliff > 0) {
-            require(_periods.cliff >= periodsCopy.cliff, IVesting.IVesting__Invalid("Invalid cliff"));
-        }
-
-        periods = _periods;
-        emit IVesting.PeriodsSet(_periods);
     }
 
     /**
@@ -295,7 +207,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     function cliffEndsAt() public view returns (uint256) {
         IVesting.Periods memory periodsCopy = periods;
-        // return _periods.vestingAt + _periods.cliff;
         return BokkyPooBahsDateTimeLibrary.addMonths(periodsCopy.vestingAt, periodsCopy.cliff);
     }
 
@@ -306,9 +217,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @return The timestamp when vesting ends.
      */
     function vestingEndsAt() public view returns (uint256) {
-        IVesting.Periods memory periodsCopy = periods;
-        // return cliffEndsAt() + periodsCopy.vestingDuration;
-        return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periodsCopy.vestingDuration);
+        return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periods.vestingDuration);
     }
 
     function getWalletsToRefund() public view returns (address[] memory) {
@@ -318,15 +227,53 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Calculates the amount of tokens allocated for TGE distribution.
      * @dev This function calculates the amount of tokens a participant receives during the TGE (Token Generation Event).
-     *      Returns zero if the IDO token address is not set.
      * @param wallet The participant's wallet address (address).
      * @return The allocated TGE token amount (UD60x18).
      */
     function _calculateTGETokens(address wallet) private view returns (UD60x18) {
-        if (token == address(0)) return convert(0);
+        if (tgeReleasePercent == 0) return convert(0);
+        return ud(purchases[wallet]).mul(ud(tgeReleasePercent));
+    }
 
-        UD60x18 tokens = ud(purchases[wallet]);
-        return tokens.mul(ud(tgeReleasePercent));
+    /**
+     * @notice Allows the contract set the different time periods for the IDO process.
+     * @dev This function can only be called by the contract constructor function.
+     * @param _periods Struct containing configuration for the IDO periods:
+     *                  - vestingDuration: Time when participation ends.
+     *                  - vestingAt: Time when vesting starts.
+     *                  - cliff: Cliff period after TGE before vesting starts.
+     */
+    function _setPeriods(IVesting.Periods memory _periods) private nonReentrant {
+        require(_periods.vestingDuration > 0, IVesting.IVesting__Invalid("Invalid vestingDuration"));
+        require(_periods.vestingAt > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
+        require(_periods.cliff > 0, IVesting.IVesting__Invalid("Invalid cliff"));
+
+        periods = _periods;
+        emit IVesting.PeriodsSet(_periods);
+    }
+
+    /**
+     * @notice Alows contract to set the list of wallets and it's purchases to be vested based on contract strategy
+     * @param wallets list of wallets
+     * @param tokensPurchased list of amounts of tokens purchased
+     */
+    function _setPurchases(address[] memory wallets, uint256[] memory tokensPurchased) private nonReentrant {
+        require(wallets.length > 0, "wallets cannot be empty");
+        require(
+            wallets.length == tokensPurchased.length,
+            IVesting.IVesting__Unauthorized("wallets and tokensPurchased should have same size length")
+        );
+
+        for (uint256 i = 0; i < wallets.length; i++) {
+            require(wallets[i] != address(0), IVesting.IVesting__Invalid("Invalid address"));
+            require(tokensPurchased[i] > 0, IVesting.IVesting__Invalid("Invalid amount permitted"));
+
+            address wallet = wallets[i];
+
+            purchases[wallet] = tokensPurchased[i];
+        }
+
+        emit IVesting.PurchasesSet(wallets, tokensPurchased);
     }
 
     /**
@@ -336,16 +283,16 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     function _calculateVestedTokens() private view returns (UD60x18) {
         UD60x18 zero = convert(0);
-        if (token == address(0)) return zero; // Token not set
-        if (totalPurchased == 0) return zero; // Nothing raised
 
         IVesting.Periods memory periodsCopy = periods;
-        if (periodsCopy.vestingAt == 0) return zero; // Vesting period not defined
         if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
 
         /// IN VESTING PERIOD ======================================================
         UD60x18 maxOfTokens = ud(totalPurchased);
-        UD60x18 tgeAmount = maxOfTokens.mul(ud(tgeReleasePercent)); // use ud because percent is already in 18 decimals
+
+        // tgeReleasePercent can be equal or higher than 0
+        // use ud because percent is already in 18 decimals
+        UD60x18 tgeAmount = tgeReleasePercent > 0 ? maxOfTokens.mul(ud(tgeReleasePercent)) : zero;
         UD60x18 maxOfTokensForVesting = maxOfTokens.sub(tgeAmount);
 
         uint256 _cliffEndsAt = cliffEndsAt();
@@ -371,21 +318,21 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
             if (vestingType == IVesting.VestingType.LinearVesting) {
                 /// LINEAR VESTING =================================================
 
-                UD60x18 duration = convert(getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Days));
+                UD60x18 duration = convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Days));
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
-                vestedAmount = tgeAmount.add(tokensPerSec.mul(elapsedTime));
+                vestedAmount = tokensPerSec.mul(elapsedTime).add(tgeAmount);
             } else if (vestingType == IVesting.VestingType.PeriodicVesting) {
                 /// PERIODC VESTING ================================================
 
                 UD60x18 totalMonths =
-                    convert(getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Month));
+                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Month));
                 UD60x18 elapsedMonths =
-                    convert(getDiffByPeriodType(_cliffEndsAt, block.timestamp, IVesting.PeriodType.Month));
+                    convert(_getDiffByPeriodType(_cliffEndsAt, block.timestamp, IVesting.PeriodType.Month));
 
                 UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
                 UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
-                vestedAmount = tgeAmount.add(vested);
+                vestedAmount = vested.add(tgeAmount);
             }
 
             return vestedAmount;
@@ -402,7 +349,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         UD60x18 zero = convert(0);
         IVesting.Periods memory periodsCopy = periods;
 
-        if (periodsCopy.vestingAt == 0) return zero; // Vesting period not defined
         if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
         if (purchases[wallet] == 0) return zero; // Wallet has no purchases
 
@@ -448,7 +394,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param periodType The period type (days or months).
      * @return The calculated time difference in seconds (for days) or months.
      */
-    function getDiffByPeriodType(uint256 start, uint256 end, IVesting.PeriodType periodType)
+    function _getDiffByPeriodType(uint256 start, uint256 end, IVesting.PeriodType periodType)
         private
         pure
         returns (uint256)
@@ -456,7 +402,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         if (periodType == IVesting.PeriodType.Days) {
             // return number of days times seconds per day
             // eg: 2 * 86400 = number of days in secondss
-            return BokkyPooBahsDateTimeLibrary.diffDays(start, end) * 86400;
+            return BokkyPooBahsDateTimeLibrary.diffDays(start, end) * 86_400;
         }
 
         // return number of months

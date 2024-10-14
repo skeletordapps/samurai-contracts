@@ -9,6 +9,7 @@ import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IVesting} from "../src/interfaces/IVesting.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
+import {console} from "forge-std/console.sol";
 
 contract VestingLinearTest is Test {
     uint256 fork;
@@ -55,239 +56,14 @@ contract VestingLinearTest is Test {
         assertEq(vesting.owner(), owner);
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);
-        assertEq(vestingDuration, 0);
-        assertEq(vestingAt, 0);
-        assertEq(cliff, 0);
+        assertEq(vestingDuration, 3);
+        assertEq(vestingAt, block.timestamp);
+        assertEq(cliff, 2);
+        assertEq(vesting.purchases(bob), 500_000 ether);
+        assertEq(vesting.purchases(mary), 500_000 ether);
     }
 
-    function testLinear_RevertSetAllPurchasesWhenListsHasDifferentSizes() external {
-        address[] memory wallets = new address[](2);
-        uint256[] memory tokensPurchased = new uint256[](3);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether;
-        amount = amount / 3;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-        tokensPurchased[2] = amount;
-
-        vm.startPrank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVesting.IVesting__Unauthorized.selector, "wallets and tokensPurchased should have same size length"
-            )
-        );
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-    }
-
-    function testLinear_RevertSetAllPurchasesWithInvalidAddress() external {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = address(0);
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether / 2;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "Invalid address"));
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-    }
-
-    function testLinear_RevertSetAllPurchasesWithInvalidAmountPermitted() external {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether / 2;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = 0;
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "Invalid amount permitted"));
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-    }
-
-    function testLinear_CanSetAllPurchases() external {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether / 2;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-
-        vm.startPrank(owner);
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-
-        assertEq(vesting.purchases(bob), amount);
-        assertEq(vesting.purchases(mary), amount);
-    }
-
-    modifier linear_purchasesSet() {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether / 2;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-
-        vm.startPrank(owner);
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-        _;
-    }
-
-    function testLinear_RevertWhenPurchasesAreSet() external linear_purchasesSet {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 1_000_000 ether / 2;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Purchases already set"));
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-    }
-
-    /// PERIODS
-
-    function testLinear_CanSetPeriods() external {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: 8, vestingAt: block.timestamp + 10 days, cliff: 1});
-
-        vm.startPrank(owner);
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-
-        (uint256 _newVestingDuration, uint256 _newVestingAt, uint256 _newCliff) = vesting.periods();
-
-        assertEq(_newVestingDuration, expectedPeriods.vestingDuration);
-        assertEq(_newVestingAt, expectedPeriods.vestingAt);
-        assertEq(_newCliff, expectedPeriods.cliff);
-    }
-
-    modifier periodsSet(uint256 newVestingDuration, uint256 newVestingAt, uint256 cliffDuration) {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: newVestingDuration, vestingAt: newVestingAt, cliff: cliffDuration});
-
-        vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IVesting.PeriodsSet(expectedPeriods);
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-
-        (vestingDuration, vestingAt, cliff) = vesting.periods();
-
-        _;
-    }
-
-    /// When vestingAt is already set
-    function testLinear_RevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
-        external
-        periodsSet(8, block.timestamp + 2 days, 0)
-    {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: 8, vestingAt: block.timestamp + 1 days, cliff: cliff});
-
-        vm.startPrank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVesting.IVesting__Invalid.selector,
-                "New vestingAt value must be greater or equal current vestingAt value"
-            )
-        );
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-    }
-
-    function testLinear_RevertSetPeriodsWhenCliffIsUnderStoredCliff()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-    {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: vestingDuration, vestingAt: vestingAt, cliff: 0});
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "Invalid cliff"));
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-    }
-
-    // SET IDO TOKEN
-
-    function testLinear_CanSetIDOToken() external {
-        vm.warp(block.timestamp + 2 hours);
-
-        ERC20Mock newToken = new ERC20Mock("IDO TOKEN", "IDT");
-
-        vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IVesting.IDOTokenSet(address(newToken));
-        vesting.setIDOToken(address(newToken));
-        vm.stopPrank();
-
-        assertEq(vesting.token(), address(newToken));
-    }
-
-    modifier idoTokenSet() {
-        ERC20Mock newToken = new ERC20Mock("IDO TOKEN", "IDT");
-        vm.startPrank(owner);
-        vesting.setIDOToken(address(newToken));
-        vm.stopPrank();
-        _;
-    }
-
-    function testLinear_RevertSetIDOTokenIfAlreadySet() external idoTokenSet {
-        ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
-
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Token already set"));
-        vesting.setIDOToken(address(newToken));
-        vm.stopPrank();
-    }
-
-    /// IDO TOKEN FILL
-
-    function testLinear_RevertFillIDOTokenWhenTokenNotSet() external {
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "IDO token not set"));
-        vesting.fillIDOToken(1 ether);
-        vm.stopPrank();
-    }
-
-    function testLinear_CanSendIDOTokenToContract() external idoTokenSet {
+    function testLinear_CanSendIDOTokenToContract() external {
         vm.warp(block.timestamp + 30 minutes);
 
         address idoToken = vesting.token();
@@ -321,7 +97,7 @@ contract VestingLinearTest is Test {
         _;
     }
 
-    function testLinear_FillInChunks() external idoTokenSet idoTokenFilled(true) {
+    function testLinear_FillInChunks() external idoTokenFilled(true) {
         vm.warp(block.timestamp + 5 hours);
         address idoToken = vesting.token();
         uint256 partialAmount = ERC20(idoToken).balanceOf(address(vesting));
@@ -335,7 +111,7 @@ contract VestingLinearTest is Test {
         assertEq(ERC20(idoToken).balanceOf(address(vesting)), partialAmount * 2);
     }
 
-    function testLinear_RevertFillIDOTokenTwice() external idoTokenSet idoTokenFilled(false) {
+    function testLinear_RevertFillIDOTokenTwice() external idoTokenFilled(false) {
         address idoToken = vesting.token();
         deal(idoToken, owner, 1 ether);
 
@@ -350,55 +126,34 @@ contract VestingLinearTest is Test {
 
     /// TGE CALCULATION
 
-    function testLinear_MustReturnZeroCheckingTGEBalanceBeforeTokenIsSet() external {
-        uint256 userAmountInTGE = vesting.previewTGETokens(bob);
-
-        assertEq(userAmountInTGE, 0);
-    }
-
-    function testLinear_CanCheckTGEBalance() external idoTokenSet {
+    function testLinear_CanCheckTGEBalance() external {
         uint256 userAmountInTGE = vesting.previewTGETokens(bob);
         uint256 userPurchase = vesting.purchases(bob);
-        UD60x18 expectedTGEamount = convert(userPurchase).mul(ud(vesting.tgeReleasePercent()));
+        UD60x18 expectedTGEamount = ud(userPurchase).mul(ud(vesting.tgeReleasePercent()));
 
         assertEq(userAmountInTGE, expectedTGEamount.intoUint256());
     }
 
     /// CALCULATE RELESEAD TOKENS
 
-    function testLinear_MustReturnZeroWhenVestingIsNotSet() external {
-        uint256 amount = vesting.previewClaimableTokens(bob);
-        assertEq(amount, 0);
-    }
-
-    function testLinear_MustReturnZeroWhenWalletHasNoAllocation() external periodsSet(8, block.timestamp + 2 days, 1) {
+    function testLinear_MustReturnZeroWhenWalletHasNoAllocation() external {
         vm.warp(vestingAt);
 
         uint256 amount = vesting.previewClaimableTokens(paul);
         assertEq(amount, 0);
     }
 
-    // function testLinear_MustReturnTGEBalanceWhenCliffPeriodIsOngoing()
-    //     external
-    //     periodsSet(8, block.timestamp + 2 days, 1)
-    //     idoTokenSet
-    // {
-    //     vm.warp(vestingAt + 1 days);
+    function testLinear_MustReturnTGEBalanceWhenCliffPeriodIsOngoing() external {
+        vm.warp(vestingAt + 1 days);
 
-    //     uint256 expectedTGEAmount = 75_000 ether; // 15% of 500_000 ether
-    //     uint256 amount = vesting.previewClaimableTokens(bob);
-    //     assertEq(amount, expectedTGEAmount);
-    // }
+        uint256 expectedTGEAmount = 75_000 ether; // 15% of 500_000 ether
+        uint256 amount = vesting.previewClaimableTokens(bob);
+        assertEq(amount, expectedTGEAmount);
+    }
 
     /// CLAIM TGE
 
-    function testLinear_CanClaimTGE()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanClaimTGE() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         address idoToken = vesting.token();
@@ -421,27 +176,14 @@ contract VestingLinearTest is Test {
         _;
     }
 
-    function testLinear_RevertAskRefundWhenClaimedTGE()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-        tgeClaimed(bob)
-    {
+    function testLinear_RevertAskRefundWhenClaimedTGE() external idoTokenFilled(false) tgeClaimed(bob) {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Not refundable"));
         vesting.askForRefund();
         vm.stopPrank();
     }
 
-    function testLinear_CanAskForRefund()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanAskForRefund() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         vm.startPrank(bob);
@@ -465,13 +207,7 @@ contract VestingLinearTest is Test {
         assertEq(walletsToRefund.length, 2);
     }
 
-    function testLinear_CanClaimTGEPlusLinearVestedInPeriod()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanClaimTGEPlusLinearVestedInPeriod() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         uint256 expectedTGEAmount = 75_000 ether;
@@ -490,13 +226,7 @@ contract VestingLinearTest is Test {
         assertEq(walletBalanceAfter, walletBalance + expectedVestedTokens);
     }
 
-    function testLinear_CanClaimVestedTokensAfterTGEClaim()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanClaimVestedTokensAfterTGEClaim() external idoTokenFilled(false) {
         vm.warp(vestingAt);
 
         uint256 expectedTGEAmount = 75_000 ether;
@@ -526,13 +256,7 @@ contract VestingLinearTest is Test {
         assertEq(tokensClaimed, tokensBought);
     }
 
-    function testLinear_CanClaimAllVestedTokens()
-        external
-        periodsSet(4, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanClaimAllVestedTokens() external idoTokenFilled(false) {
         vm.warp(vesting.cliffEndsAt() + 1 minutes);
 
         uint256 totalClaimed;
@@ -556,20 +280,7 @@ contract VestingLinearTest is Test {
 
     // EMERGENCY WITHDRAW FOR SPECIFIC WALLET
 
-    function testLinear_RevertEmergencyWithdrawByWalletWhenTokenNotSet() external {
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Token not set"));
-        vesting.emergencyWithdrawByWallet(bob);
-        vm.stopPrank();
-    }
-
-    function testLinear_RevertEmergencyWithdrawByWalletWhenVesingIsOngoing()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_RevertEmergencyWithdrawByWalletWhenVesingIsOngoing() external idoTokenFilled(false) {
         (uint256 _vestingDuration, uint256 _vestingAt,) = vesting.periods();
         vm.warp(_vestingAt + _vestingDuration - 1 days);
         vm.startPrank(owner);
@@ -578,13 +289,7 @@ contract VestingLinearTest is Test {
         vm.stopPrank();
     }
 
-    function testLinear_CanEmergencyWithdrawByWallet()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        linear_purchasesSet
-    {
+    function testLinear_CanEmergencyWithdrawByWallet() external idoTokenFilled(false) {
         uint256 expectedAmountToWithdraw = 500_000 ether;
         vm.warp(vesting.vestingEndsAt() + 1 hours);
         vm.startPrank(owner);
@@ -596,21 +301,7 @@ contract VestingLinearTest is Test {
 
     // EMERGENCY WITHDRAW
 
-    function testLinear_RevertEmergencyWithdrawtWhenTokenNotSet() external {
-        vm.startPrank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Token not set"));
-        vesting.emergencyWithdraw();
-        vm.stopPrank();
-    }
-
-    function testLinear_CanEmergencyWithdraw()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-    {
-        assertTrue(vesting.token() != address(0));
-
+    function testLinear_CanEmergencyWithdraw() external idoTokenFilled(false) {
         uint256 expectedAmountToWithdraw = 1_000_000 ether;
 
         vm.startPrank(owner);

@@ -51,67 +51,6 @@ contract VestingCliffTest is Test {
         (vestingDuration, vestingAt, cliff) = vesting.periods();
     }
 
-    modifier purchasesSet() {
-        uint256 count = 2;
-        address[] memory wallets = new address[](count);
-        uint256[] memory tokensPurchased = new uint256[](count);
-
-        wallets[0] = bob;
-        wallets[1] = mary;
-
-        uint256 amount = 500_000 ether;
-
-        tokensPurchased[0] = amount;
-        tokensPurchased[1] = amount;
-
-        vm.startPrank(owner);
-        vesting.setAllPurchases(wallets, tokensPurchased);
-        vm.stopPrank();
-        _;
-    }
-
-    modifier periodsSet(uint256 newVestingDuration, uint256 newVestingAt, uint256 cliffDuration) {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: newVestingDuration, vestingAt: newVestingAt, cliff: cliffDuration});
-
-        vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IVesting.PeriodsSet(expectedPeriods);
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-
-        (vestingDuration, vestingAt, cliff) = vesting.periods();
-
-        _;
-    }
-
-    /// When vestingAt is already set
-    function testCliff_RevertSetPeriodsWhenVestingAtIsUnderStoredVestingAt()
-        external
-        periodsSet(8, block.timestamp + 2 days, 0)
-    {
-        IVesting.Periods memory expectedPeriods =
-            IVesting.Periods({vestingDuration: 8, vestingAt: block.timestamp + 1 days, cliff: cliff});
-
-        vm.startPrank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVesting.IVesting__Invalid.selector,
-                "New vestingAt value must be greater or equal current vestingAt value"
-            )
-        );
-        vesting.setPeriods(expectedPeriods);
-        vm.stopPrank();
-    }
-
-    modifier idoTokenSet() {
-        ERC20Mock newToken = new ERC20Mock("IDO TOKEN", "IDT");
-        vm.startPrank(owner);
-        vesting.setIDOToken(address(newToken));
-        vm.stopPrank();
-        _;
-    }
-
     modifier idoTokenFilled(bool sendHalf) {
         vm.warp(block.timestamp + 30 minutes);
         address idoToken = vesting.token();
@@ -130,19 +69,7 @@ contract VestingCliffTest is Test {
 
     /// TGE CALCULATION
 
-    function testCliff_MustReturnZeroCheckingTGEBalanceBeforeTokenIsSet() external {
-        uint256 userAmountInTGE = vesting.previewTGETokens(bob);
-
-        assertEq(userAmountInTGE, 0);
-    }
-
-    function testCliff_CanCheckTGEBalance()
-        external
-        periodsSet(3, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        purchasesSet
-    {
+    function testCliff_CanCheckTGEBalance() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 minutes);
         uint256 expectedTGEamount = 75_000 ether;
         uint256 userAmountInTGE = vesting.previewTGETokens(bob);
@@ -152,25 +79,14 @@ contract VestingCliffTest is Test {
 
     /// CALCULATE RELESEAD TOKENS
 
-    function testCliff_MustReturnZeroWhenVestingIsNotSet() external {
-        uint256 amount = vesting.previewClaimableTokens(bob);
-        assertEq(amount, 0);
-    }
-
-    function testCliff_MustReturnZeroWhenWalletHasNoAllocation() external periodsSet(8, block.timestamp + 2 days, 1) {
+    function testCliff_MustReturnZeroWhenWalletHasNoAllocation() external {
         vm.warp(vestingAt);
 
         uint256 amount = vesting.previewClaimableTokens(paul);
         assertEq(amount, 0);
     }
 
-    function testCliff_MustReturnTGEBalanceWhenCliffPeriodIsOngoing()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        purchasesSet
-    {
+    function testCliff_MustReturnTGEBalanceWhenCliffPeriodIsOngoing() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         uint256 expectedTGEAmount = 75_000 ether;
@@ -181,13 +97,7 @@ contract VestingCliffTest is Test {
 
     /// CLAIM TGE
 
-    function testCliff_CanClaimTGE()
-        external
-        periodsSet(8, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        purchasesSet
-    {
+    function testCliff_CanClaimTGE() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         address idoToken = vesting.token();
@@ -212,13 +122,7 @@ contract VestingCliffTest is Test {
         _;
     }
 
-    function testCliff_CanClaimAllPurchasedTokensFollowingCliffVesting()
-        external
-        periodsSet(3, block.timestamp + 2 days, 1)
-        idoTokenSet
-        idoTokenFilled(false)
-        purchasesSet
-    {
+    function testCliff_CanClaimAllPurchasedTokensFollowingCliffVesting() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 purchased = 500_000 ether;
