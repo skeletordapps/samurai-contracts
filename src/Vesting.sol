@@ -16,6 +16,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
     uint256 public totalPurchased;
     uint256 public tgeReleasePercent;
+    uint256 public totalClaimed;
     address public token;
     IVesting.VestingType public vestingType;
     IVesting.Periods public periods;
@@ -98,11 +99,18 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     function claim() external canClaimTokens whenNotPaused nonReentrant {
         uint256 claimable = previewClaimableTokens(msg.sender);
         require(claimable > 0, IVesting.IVesting__Unauthorized("There is no vested tokens available to claim"));
+        require(
+            totalClaimed + claimable <= totalPurchased,
+            IVesting.IVesting__Unauthorized("Exceeds total amount purchased")
+        );
 
         if (!hasClaimedTGE[msg.sender]) hasClaimedTGE[msg.sender] = true;
 
         // Update claimed tokens by user
         tokensClaimed[msg.sender] += claimable;
+
+        // Update overal claimed tokens
+        totalClaimed += claimable;
 
         // Update last claim timestamp based on the release type
         lastClaimTimestamps[msg.sender] = block.timestamp;

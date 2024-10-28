@@ -16,3 +16,8 @@ base = "${BASE_RPC_URL}"
 
 [etherscan]
 base_mainnet = { key = "${BASESCAN_API_KEY}", chain = 8543, url = "https://api.basescan.org/api" }
+
+[invariant]
+fail_on_revert = false
+runs = 1215
+depth = 23

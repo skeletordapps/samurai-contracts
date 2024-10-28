@@ -13,8 +13,8 @@ contract DeployParticipatorNftV2 is Script {
     function run() external returns (ParticipatorNftV2 participator) {
         address samuraiTiers = 0x2Bb8Fc0196becd84bac853E32c9c252343699186;
         bool usingETH = false;
-        uint256 pricePerToken = usingETH ? 0.1 ether : 637e6;
-        uint256 totalMax = 160;
+        uint256 pricePerToken = usingETH ? 0.1 ether : 175e6;
+        uint256 totalMax = 172;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 

@@ -126,7 +126,7 @@ contract VestingLinearTest is Test {
 
     /// TGE CALCULATION
 
-    function testLinear_CanCheckTGEBalance() external {
+    function testLinear_CanCheckTGEBalance() external view {
         uint256 userAmountInTGE = vesting.previewTGETokens(bob);
         uint256 userPurchase = vesting.purchases(bob);
         UD60x18 expectedTGEamount = ud(userPurchase).mul(ud(vesting.tgeReleasePercent()));

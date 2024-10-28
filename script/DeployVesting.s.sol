@@ -42,6 +42,27 @@ contract DeployVesting is Script {
         return vesting;
     }
 
+    function runForFuzzTests(
+        IVesting.VestingType _vestingType,
+        uint256 _totalPurchased,
+        uint256 _tgeReleasePercent,
+        IVesting.Periods memory _periods
+    ) external returns (Vesting vesting) {
+        ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
+        address idoToken = address(newToken);
+        uint256 totalPurchased = _totalPurchased;
+        uint256 tgeReleasePercent = _tgeReleasePercent;
+        IVesting.Periods memory periods = _periods;
+        (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
+        vm.startBroadcast();
+        vesting =
+            new Vesting(idoToken, totalPurchased, tgeReleasePercent, _vestingType, periods, wallets, tokensPurchased);
+        loadWallets();
+        vm.stopBroadcast();
+
+        return vesting;
+    }
+
     function loadWallets() internal pure returns (address[] memory wallets, uint256[] memory tokensPurchased) {
         wallets = new address[](2);
         tokensPurchased = new uint256[](2);
