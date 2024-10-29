@@ -10,15 +10,19 @@ import {IVesting} from "./interfaces/IVesting.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
+import {IPoints} from "./interfaces/IPoints.sol";
 
 contract Vesting is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    uint256 public totalPurchased;
-    uint256 public tgeReleasePercent;
+    uint256 public immutable totalPurchased;
+    uint256 public immutable tgeReleasePercent;
+    uint256 public immutable pointsPerToken;
+    address public immutable token;
+    address public immutable points;
+    IVesting.VestingType public immutable vestingType;
+
     uint256 public totalClaimed;
-    address public token;
-    IVesting.VestingType public vestingType;
     IVesting.Periods public periods;
     address[] public walletsToRefund;
 
@@ -26,13 +30,17 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     mapping(address wallet => bool tgeClaimed) public hasClaimedTGE;
     mapping(address wallet => uint256 tokens) public tokensClaimed;
     mapping(address wallet => uint256 timestamp) public lastClaimTimestamps;
+    mapping(address wallet => bool askedRefund) public askedRefund;
+    mapping(address wallet => uint256 claimed) public pointsClaimed;
 
     /**
      * @notice Sets the initial configuration for the IDO contract.
      * @dev Reverts if the token address is invalid, total purchased is zero, TGE release percent is zero or vesting type is invalid.
      * @param _token IDO token address.
+     * @param _points Samurai Points token address.
      * @param _totalPurchased total amount of tokens purchased by users.
      * @param _tgeReleasePercent TGE release percent.
+     * @param _pointsPerToken amount of points per token purchased
      * @param _vestingType Type of vesting schedule.
      * @param _periods Struct containing initial periods configuration: registration start, participation start/end, TGE vesting at.
      * @param _wallets List of wallets addresses.
@@ -40,20 +48,25 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     constructor(
         address _token,
+        address _points,
         uint256 _totalPurchased,
         uint256 _tgeReleasePercent,
+        uint256 _pointsPerToken,
         IVesting.VestingType _vestingType,
         IVesting.Periods memory _periods,
         address[] memory _wallets,
         uint256[] memory _tokensPurchased
     ) Ownable(msg.sender) {
         require(_token != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
+        require(_points != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(_totalPurchased > 0, IVesting.IVesting__Unauthorized("No purchases"));
         require(uint256(_vestingType) < 3, IVesting.IVesting__Invalid("Invalid vesting type"));
 
         token = _token;
+        points = _points;
         totalPurchased = _totalPurchased;
         tgeReleasePercent = _tgeReleasePercent; // this can be zero
+        pointsPerToken = _pointsPerToken;
         vestingType = _vestingType;
         _setPeriods(_periods);
         _setPurchases(_wallets, _tokensPurchased);
@@ -67,7 +80,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *       - Must be within the claim period since the user's last claim.
      *       This modifier is used on the `claim` function.
      */
-    modifier canClaimTokens() {
+    modifier canClaim() {
         IVesting.Periods memory periodsCopy = periods;
         require(block.timestamp >= periodsCopy.vestingAt, IVesting.IVesting__Unauthorized("Not in vesting phase"));
         require(purchases[msg.sender] > 0, IVesting.IVesting__Unauthorized("No tokens available"));
@@ -96,7 +109,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It calculates the claimable amount based on the user's tier and participation.
      * emit Claimed(msg.sender, amount) Emitted when a user successfully claims their IDO tokens.
      */
-    function claim() external canClaimTokens whenNotPaused nonReentrant {
+    function claim() external canClaim whenNotPaused nonReentrant {
         uint256 claimable = previewClaimableTokens(msg.sender);
         require(claimable > 0, IVesting.IVesting__Unauthorized("There is no vested tokens available to claim"));
         require(
@@ -117,6 +130,16 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         emit IVesting.Claimed(msg.sender, claimable);
 
         ERC20(token).safeTransfer(msg.sender, claimable);
+    }
+
+    function claimPoints() external canClaim whenNotPaused nonReentrant {
+        uint256 pointsToClaim = previewClaimablePoints(msg.sender);
+        require(pointsToClaim > 0, IVesting.IVesting__Unauthorized("Nothing to claim"));
+
+        pointsClaimed[msg.sender] = pointsToClaim;
+        emit IVesting.PointsClaimed(msg.sender, pointsToClaim);
+
+        IPoints(points).mint(msg.sender, pointsToClaim);
     }
 
     /**
@@ -154,9 +177,18 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         emit IVesting.RemainingTokensWithdrawal(balance);
     }
 
+    /**
+     * @notice Allows a wallet to ask for a refund.
+     * This feature is designed to help with problems and edge cases.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     * It reverts if there are no tokens to withdraw.
+     * emit RemainingTokensWithdrawal(balance) Emitted when remaining IDO tokens are withdrawn.
+     */
     function askForRefund() external whenNotPaused nonReentrant {
         require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
+        require(pointsClaimed[msg.sender] == 0, IVesting.IVesting__Unauthorized("Not refundable"));
 
+        askedRefund[msg.sender] = true;
         walletsToRefund.push(msg.sender);
         emit IVesting.NeedRefund(walletsToRefund);
     }
@@ -206,6 +238,26 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     function previewClaimableTokens(address wallet) public view returns (uint256) {
         return _calculateVestedByWallet(wallet).intoUint256();
+    }
+
+    /**
+     * @notice Previews the claimable points for a given wallet.
+     * @dev Calculates the total amount of Samurai Points tokens for the specified wallet.
+     *      - Wallets must had purchased IDO tokens
+     *      - Wallets to be refunded cannot get any Samurai Point
+     *      - Points are claimed only once after vesting starts
+     *
+     * @param wallet The wallet address to calculate claimable tokens for.
+     * @return claimablePoints The total amount of claimable points for the wallet.
+     */
+    function previewClaimablePoints(address wallet) public view returns (uint256) {
+        uint256 purchased = purchases[wallet];
+
+        if (purchased == 0) return 0; // wallet has no purchases
+        if (askedRefund[wallet]) return 0; // wallets that asked for refund cannot get any points
+        if (pointsClaimed[wallet] > 0) return 0; // wallet already claimed
+
+        return purchased * pointsPerToken;
     }
 
     /**

@@ -52,7 +52,7 @@ contract VestingLinearTest is Test {
         (vestingDuration, vestingAt, cliff) = vesting.periods();
     }
 
-    function testLinear_Constructor() public {
+    function testLinear_Constructor() public view {
         assertEq(vesting.owner(), owner);
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);
@@ -61,6 +61,7 @@ contract VestingLinearTest is Test {
         assertEq(cliff, 2);
         assertEq(vesting.purchases(bob), 500_000 ether);
         assertEq(vesting.purchases(mary), 500_000 ether);
+        assertEq(vesting.pointsPerToken(), 100 ether);
     }
 
     function testLinear_CanSendIDOTokenToContract() external {

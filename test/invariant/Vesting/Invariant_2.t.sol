@@ -27,15 +27,15 @@ contract Vesting_Invariant_2 is Test {
         targetContract(address(target3));
     }
 
-    function invariant_test_cliff_totalVested_is_always_higher_or_equal_totalClaimed() public {
+    function invariant_test_cliff_totalVested_is_always_higher_or_equal_totalClaimed() public view {
         assertGe(target1.previewVestedTokens(), target1.totalClaimed());
     }
 
-    function invariant_test_linear_totalVested_is_always_higher_or_equal_totalClaimed() public {
+    function invariant_test_linear_totalVested_is_always_higher_or_equal_totalClaimed() public view {
         assertGe(target2.previewVestedTokens(), target2.totalClaimed());
     }
 
-    function invariant_test_periodic_totalVested_is_always_higher_or_equal_totalClaimed() public {
+    function invariant_test_periodic_totalVested_is_always_higher_or_equal_totalClaimed() public view {
         assertGe(target3.previewVestedTokens(), target3.totalClaimed());
     }
 }
