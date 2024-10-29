@@ -51,7 +51,7 @@ contract VestingPeriodicTest is Test {
         (vestingDuration, vestingAt, cliff) = vesting.periods();
     }
 
-    function testPeriodic_Constructor() public {
+    function testPeriodic_Constructor() public view {
         assertEq(vesting.owner(), owner);
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);

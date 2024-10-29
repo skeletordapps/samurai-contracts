@@ -13,6 +13,7 @@ import {IPoints} from "../src/interfaces/IPoints.sol";
 
 contract DeployVesting is Script {
     function run() external returns (Vesting vesting) {
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         address idoToken = address(0x0);
         address points = address(0x0);
         uint256 totalPurchased = 1_000_000 ether;
@@ -22,7 +23,7 @@ contract DeployVesting is Script {
         IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 0, vestingAt: 0, cliff: 0});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
-        vm.startBroadcast();
+        vm.startBroadcast(privateKey);
         vesting = new Vesting(
             idoToken,
             points,
@@ -40,27 +41,19 @@ contract DeployVesting is Script {
     }
 
     function runForTests(IVesting.VestingType _vestingType) external returns (Vesting vesting) {
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
         address idoToken = address(newToken);
-        SamuraiPoints sp = new SamuraiPoints();
-        address points = address(sp);
         uint256 totalPurchased = 1_000_000 ether;
         uint256 tgeReleasePercent = 0.15 ether;
         uint256 pointsPerToken = 100 ether;
         IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 3, vestingAt: block.timestamp, cliff: 2});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
-        // address _token,
-        // address _points,
-        // uint256 _totalPurchased,
-        // uint256 _tgeReleasePercent,
-        // uint256 _pointsPerToken,
-        // IVesting.VestingType _vestingType,
-        // IVesting.Periods memory _periods,
-        // address[] memory _wallets,
-        // uint256[] memory _tokensPurchased
+        vm.startBroadcast(privateKey);
+        SamuraiPoints sp = new SamuraiPoints();
+        address points = address(sp);
 
-        vm.startBroadcast();
         vesting = new Vesting(
             idoToken,
             points,
@@ -73,7 +66,7 @@ contract DeployVesting is Script {
             tokensPurchased
         );
 
-        // sp.grantRole(IPoints.Roles.MINTER, address(vesting));
+        sp.grantRole(IPoints.Roles.MINTER, address(vesting));
         loadWallets();
         vm.stopBroadcast();
 
@@ -86,9 +79,8 @@ contract DeployVesting is Script {
         uint256 _tgeReleasePercent,
         IVesting.Periods memory _periods
     ) external returns (Vesting vesting) {
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
-        SamuraiPoints sp = new SamuraiPoints();
-        address points = address(sp);
         address idoToken = address(newToken);
         uint256 totalPurchased = _totalPurchased;
         uint256 tgeReleasePercent = _tgeReleasePercent;
@@ -96,7 +88,10 @@ contract DeployVesting is Script {
         IVesting.Periods memory periods = _periods;
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
-        vm.startBroadcast();
+        vm.startBroadcast(privateKey);
+        SamuraiPoints sp = new SamuraiPoints();
+        address points = address(sp);
+
         vesting = new Vesting(
             idoToken,
             points,

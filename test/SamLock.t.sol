@@ -59,7 +59,7 @@ contract SamLockTest is Test {
 
     // CONSTRUCTOR
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(lock.owner(), owner);
         assertEq(address(lock.sam()), token);
 
