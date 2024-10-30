@@ -53,7 +53,7 @@ contract ParticipatorV2TokensTest is Test {
         maxAllocations = participator.maxAllocations();
     }
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(participator.owner(), owner);
         assertEq(participator.acceptedTokens(0), vm.envAddress("BASE_USDC_ADDRESS"));
         assertFalse(participator.samuraiTiers() == address(0));

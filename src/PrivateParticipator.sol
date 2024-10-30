@@ -8,35 +8,50 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IParticipator} from "./interfaces/IParticipator.sol";
 import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
+import {console} from "forge-std/console.sol";
 
 contract PrivateParticipator is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    address public acceptedToken;
-    uint256 public maxAllocations;
+    address public immutable acceptedToken;
+    uint256 public immutable maxAllocations;
+    uint256 public immutable pricePerToken;
+    uint256 public immutable minPerWallet;
+
     uint256 public raised;
     bool public isPublic;
 
+    mapping(address wallet => uint256 max) public walletsMaxPermitted;
     mapping(address wallet => uint256 allocation) public allocations;
-    mapping(address wallet => uint256 range) public ranges;
 
     /**
      * @notice Constructor to initialize the contract.
      * @param _acceptedToken Address of the accepted token.
      * @param _maxAllocations Total maximum allowed allocations. (Must be greater than 0)
+     * @param _pricePerToken price per token purchased. (Must be greater than 0)
+     * @param _minPerWallet Min allowed to allocation. (Must be greater than 0)
      * @param _wallets List of wallets addresses.
-     * @param _ranges List of ranges by wallets.
+     * @param _purchases List of purchases by wallets.
      */
-    constructor(address _acceptedToken, uint256 _maxAllocations, address[] memory _wallets, uint256[] memory _ranges)
-        Ownable(msg.sender)
-    {
+    constructor(
+        address _acceptedToken,
+        uint256 _maxAllocations,
+        uint256 _pricePerToken,
+        uint256 _minPerWallet,
+        address[] memory _wallets,
+        uint256[] memory _purchases
+    ) Ownable(msg.sender) {
         require(_acceptedToken != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
         require(_maxAllocations > 0, IParticipator.IParticipator__Invalid("Total Max should be greater than 0"));
+        require(_pricePerToken > 0, IParticipator.IParticipator__Invalid("Price per token should be greater than 0"));
+        require(_minPerWallet > 0, IParticipator.IParticipator__Invalid("Min per wallet should be greater than 0"));
 
         acceptedToken = _acceptedToken;
         maxAllocations = _maxAllocations;
+        pricePerToken = _pricePerToken;
+        minPerWallet = _minPerWallet;
 
-        _setRanges(_wallets, _ranges);
+        _setMaxPermitted(_wallets, _purchases);
     }
 
     /**
@@ -45,12 +60,14 @@ contract PrivateParticipator is Ownable, Pausable, ReentrancyGuard {
      * emit Allocated(msg.sender, tokenAddress, amount) Emitted when a user successfully participates with a token.
      */
     function participate(uint256 amount) external whenNotPaused nonReentrant {
-        require(ranges[msg.sender] > 0 || isPublic, IParticipator.IParticipator__Unauthorized("Wallet not allowed"));
-        uint256 range = ranges[msg.sender];
-        require(amount >= range, IParticipator.IParticipator__Invalid("Amount too low"));
-        require(amount <= range, IParticipator.IParticipator__Invalid("Amount too high"));
+        uint256 min = minPerWallet;
+        uint256 max = walletsMaxPermitted[msg.sender];
+
+        require(max > 0 || isPublic, IParticipator.IParticipator__Unauthorized("Wallet not allowed"));
+        require(amount >= min, IParticipator.IParticipator__Invalid("Amount too low"));
+        require(amount <= max, IParticipator.IParticipator__Invalid("Amount too high"));
         require(
-            allocations[msg.sender] + amount <= range,
+            allocations[msg.sender] + amount <= max,
             IParticipator.IParticipator__Invalid("Exceeds max allocation permitted")
         );
 
@@ -105,20 +122,20 @@ contract PrivateParticipator is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Alows contract to set the list of wallets and it's purchases to be vested based on contract strategy
      * @param _wallets list of wallets
-     * @param _ranges list of ranges for each wallet
+     * @param _purchases list of purchases of each wallet
      */
-    function _setRanges(address[] memory _wallets, uint256[] memory _ranges) private nonReentrant {
+    function _setMaxPermitted(address[] memory _wallets, uint256[] memory _purchases) private nonReentrant {
         require(_wallets.length > 0, "wallets cannot be empty");
         require(
-            _wallets.length == _ranges.length,
-            IParticipator.IParticipator__Unauthorized("wallets and ranges should have same size length")
+            _wallets.length == _purchases.length,
+            IParticipator.IParticipator__Unauthorized("wallets and purchases should have same size length")
         );
 
         for (uint256 i = 0; i < _wallets.length; i++) {
             require(_wallets[i] != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
-            require(_ranges[i] > 0, IParticipator.IParticipator__Invalid("Invalid amount permitted"));
+            require(_purchases[i] > 0, IParticipator.IParticipator__Invalid("Invalid purchase amount"));
 
-            ranges[_wallets[i]] = _ranges[i];
+            walletsMaxPermitted[_wallets[i]] = _purchases[i] * pricePerToken;
         }
     }
 
@@ -128,7 +145,7 @@ contract PrivateParticipator is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The address of the wallet to get the participation range for.
      * @return walletRange A uint256 number with range.
      */
-    function getWalletRange(address wallet) public view returns (uint256) {
-        return ranges[wallet];
+    function getWalletMaxPermitted(address wallet) public view returns (uint256) {
+        return walletsMaxPermitted[wallet];
     }
 }
