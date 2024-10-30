@@ -8,7 +8,7 @@ import {IVesting} from "../../../src/interfaces/IVesting.sol";
 import {DeployVesting} from "../../../script/DeployVesting.s.sol";
 import {console} from "forge-std/console.sol";
 
-contract Vesting_Invariant_1 is Test {
+contract Vesting_Invariant_3 is Test {
     DeployVesting deployer;
 
     Vesting private target1;
@@ -27,9 +27,15 @@ contract Vesting_Invariant_1 is Test {
         targetContract(address(target3));
     }
 
-    function invariant_test_totalPurchased_is_always_higher_or_equal_totalClaimed() public view {
-        assertGe(target1.totalPurchased(), target1.totalClaimed());
-        assertGe(target2.totalPurchased(), target2.totalClaimed());
-        assertGe(target3.totalPurchased(), target3.totalClaimed());
+    function invariant_test_cliff_totalPointsClaimed_is_always_under_or_equal_totalPoints() public view {
+        assertLe(target1.totalPointsClaimed(), target1.totalPoints());
+    }
+
+    function invariant_test_linear_totalPointsClaimed_is_always_under_or_equal_totalPoints() public view {
+        assertLe(target2.totalPointsClaimed(), target2.totalPoints());
+    }
+
+    function invariant_test_periodic_totalPointsClaimed_is_always_under_or_equal_totalPoints() public view {
+        assertLe(target3.totalPointsClaimed(), target3.totalPoints());
     }
 }

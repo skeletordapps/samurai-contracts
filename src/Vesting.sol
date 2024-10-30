@@ -15,14 +15,16 @@ import {IPoints} from "./interfaces/IPoints.sol";
 contract Vesting is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    uint256 public immutable totalPurchased;
     uint256 public immutable tgeReleasePercent;
     uint256 public immutable pointsPerToken;
     address public immutable token;
     address public immutable points;
     IVesting.VestingType public immutable vestingType;
 
+    uint256 public totalPurchased;
     uint256 public totalClaimed;
+    uint256 public totalPoints;
+    uint256 public totalPointsClaimed;
     IVesting.Periods public periods;
     address[] public walletsToRefund;
 
@@ -38,7 +40,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev Reverts if the token address is invalid, total purchased is zero, TGE release percent is zero or vesting type is invalid.
      * @param _token IDO token address.
      * @param _points Samurai Points token address.
-     * @param _totalPurchased total amount of tokens purchased by users.
      * @param _tgeReleasePercent TGE release percent.
      * @param _pointsPerToken amount of points per token purchased
      * @param _vestingType Type of vesting schedule.
@@ -49,7 +50,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     constructor(
         address _token,
         address _points,
-        uint256 _totalPurchased,
         uint256 _tgeReleasePercent,
         uint256 _pointsPerToken,
         IVesting.VestingType _vestingType,
@@ -59,12 +59,10 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     ) Ownable(msg.sender) {
         require(_token != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(_points != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
-        require(_totalPurchased > 0, IVesting.IVesting__Unauthorized("No purchases"));
         require(uint256(_vestingType) < 3, IVesting.IVesting__Invalid("Invalid vesting type"));
 
         token = _token;
         points = _points;
-        totalPurchased = _totalPurchased;
         tgeReleasePercent = _tgeReleasePercent; // this can be zero
         pointsPerToken = _pointsPerToken;
         vestingType = _vestingType;
@@ -137,6 +135,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         require(pointsToClaim > 0, IVesting.IVesting__Unauthorized("Nothing to claim"));
 
         pointsClaimed[msg.sender] = pointsToClaim;
+        totalPointsClaimed += pointsToClaim;
         emit IVesting.PointsClaimed(msg.sender, pointsToClaim);
 
         IPoints(points).mint(msg.sender, pointsToClaim);
@@ -316,6 +315,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @notice Alows contract to set the list of wallets and it's purchases to be vested based on contract strategy
      * @param wallets list of wallets
      * @param tokensPurchased list of amounts of tokens purchased
+     * @dev This function also sets totalPurchased and totalPoints
      */
     function _setPurchases(address[] memory wallets, uint256[] memory tokensPurchased) private nonReentrant {
         require(wallets.length > 0, "wallets cannot be empty");
@@ -324,6 +324,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
             IVesting.IVesting__Unauthorized("wallets and tokensPurchased should have same size length")
         );
 
+        uint256 _totalPurchased;
+
         for (uint256 i = 0; i < wallets.length; i++) {
             require(wallets[i] != address(0), IVesting.IVesting__Invalid("Invalid address"));
             require(tokensPurchased[i] > 0, IVesting.IVesting__Invalid("Invalid amount permitted"));
@@ -331,8 +333,11 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
             address wallet = wallets[i];
 
             purchases[wallet] = tokensPurchased[i];
+            _totalPurchased += tokensPurchased[i];
         }
 
+        totalPurchased = _totalPurchased; // Total amount of IDO tokens purchased
+        totalPoints = _totalPurchased * pointsPerToken; // Max of samurai points to distribute
         emit IVesting.PurchasesSet(wallets, tokensPurchased);
     }
 
