@@ -155,6 +155,20 @@ contract PrivateParticipatorTest is Test {
         assertEq(participator.allocations(paul), amount * 2);
     }
 
+    function testRevertParticipationWithLessThanMin() external {
+        uint256 less = minPerWallet - 10e6;
+
+        vm.startPrank(randomUSDCHolder);
+        ERC20(acceptedToken).transfer(bob, less);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        ERC20(acceptedToken).approve(address(participator), less);
+        vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
+        participator.participate(less);
+        vm.stopPrank();
+    }
+
     function testRevertParticipationWithMoreThanPermitted() external {
         uint256 upMax = participator.walletsMaxPermitted(bob) + 10e6;
 
@@ -168,226 +182,4 @@ contract PrivateParticipatorTest is Test {
         participator.participate(upMax);
         vm.stopPrank();
     }
-
-    // modifier isWhitelisted(address wallet) {
-    //     vm.startPrank(wallet);
-    //     participator.registerToWhitelist();
-    //     vm.stopPrank();
-    //     _;
-    // }
-
-    // function testRevertParticipationWithZeroAddress()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    // {
-    //     vm.startPrank(walletInTiers);
-    //     vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Invalid Token"));
-    //     participator.participate(address(0), 0);
-    //     vm.stopPrank();
-    // }
-
-    // function testRevertParticipationNonPermittedAmounts()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    // {
-    //     IParticipator.WalletRange memory walletRange = participator.getWalletRange(walletInTiers);
-
-    //     vm.startPrank(walletInTiers);
-    //     vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too low"));
-    //     participator.participate(acceptedToken, walletRange.min / 2);
-
-    //     vm.expectRevert(abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Amount too high"));
-    //     participator.participate(acceptedToken, walletRange.max * 2);
-    //     vm.stopPrank();
-    // }
-
-    // modifier hasBalance(address wallet, address token, uint256 amount) {
-    //     if (keccak256(abi.encodePacked(ERC20(token).symbol())) == keccak256(abi.encodePacked("USDC"))) {
-    //         vm.startPrank(randomUSDCHolder);
-    //         ERC20(token).transfer(wallet, amount);
-    //         vm.stopPrank();
-    //     } else {
-    //         deal(token, wallet, amount);
-    //     }
-    //     _;
-    // }
-
-    // function testCanParticipate()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
-    // {
-    //     IParticipator.WalletRange memory walletRange = participator.getWalletRange(walletInTiers);
-    //     uint256 amountToParticipate = walletRange.min;
-
-    //     vm.startPrank(walletInTiers);
-    //     ERC20(acceptedToken).approve(address(participator), amountToParticipate);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit IParticipator.Allocated(walletInTiers, acceptedToken, amountToParticipate);
-    //     participator.participate(acceptedToken, amountToParticipate);
-    //     vm.stopPrank();
-
-    //     assertEq(participator.allocations(walletInTiers), amountToParticipate);
-    //     assertEq(participator.raised(), amountToParticipate);
-    // }
-
-    // modifier participated(address wallet, address token, uint256 amount) {
-    //     vm.startPrank(wallet);
-    //     ERC20(token).approve(address(participator), amount);
-    //     participator.participate(token, amount);
-    //     vm.stopPrank();
-    //     _;
-    // }
-
-    // modifier isPublic() {
-    //     vm.startPrank(owner);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit IParticipator.PublicAllowed();
-    //     participator.makePublic();
-    //     vm.stopPrank();
-
-    //     assertTrue(participator.isPublic());
-    //     _;
-    // }
-
-    // function testRevertParticipationWhenExceedsLimit()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
-    //     participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
-    // {
-    //     IParticipator.WalletRange memory walletRange = participator.getWalletRange(walletInTiers);
-    //     uint256 amountToParticipate = walletRange.max;
-    //     vm.startPrank(walletInTiers);
-    //     ERC20(acceptedToken).approve(address(participator), amountToParticipate);
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(IParticipator.IParticipator__Invalid.selector, "Exceeds max allocation permitted")
-    //     );
-    //     participator.participate(acceptedToken, amountToParticipate);
-    //     vm.stopPrank();
-    // }
-
-    // function testWhitelistedCanTopUpWhenIsPublic()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
-    //     participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).max)
-    // {
-    //     assertEq(participator.allocations(walletInTiers), participator.getWalletRange(walletInTiers).max);
-
-    //     IParticipator.WalletRange memory range = participator.getRange(0);
-    //     uint256 amountToTopUp = range.max - participator.allocations(walletInTiers);
-
-    //     vm.startPrank(owner);
-    //     participator.makePublic();
-    //     vm.stopPrank();
-
-    //     vm.startPrank(randomUSDCHolder);
-    //     ERC20(acceptedToken).transfer(walletInTiers, amountToTopUp);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(walletInTiers);
-    //     ERC20(acceptedToken).approve(address(participator), amountToTopUp);
-    //     participator.participate(acceptedToken, amountToTopUp);
-    //     vm.stopPrank();
-
-    //     assertEq(participator.allocations(walletInTiers), range.max);
-    // }
-
-    // function testRevertNonWhitelistedsInPublicRoundWithoutLinkedWallet()
-    //     external
-    //     isPublic
-    //     hasBalance(bob, acceptedToken, participator.getRange(0).max)
-    // {
-    //     IParticipator.WalletRange memory walletRange = participator.getWalletRange(bob);
-    //     uint256 amountToParticipate = walletRange.max;
-
-    //     vm.startPrank(bob);
-    //     ERC20(acceptedToken).approve(address(participator), amountToParticipate);
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(IParticipator.IParticipator__Unauthorized.selector, "Linked wallet not found")
-    //     );
-    //     participator.participate(acceptedToken, amountToParticipate);
-    //     vm.stopPrank();
-    // }
-
-    // function testNonWhitelistedCanParticipateInPublicRound()
-    //     external
-    //     walletLinked(bob)
-    //     isPublic
-    //     hasBalance(bob, acceptedToken, participator.getRange(0).max)
-    // {
-    //     IParticipator.WalletRange memory walletRange = participator.getWalletRange(bob);
-    //     uint256 amountToParticipate = walletRange.max;
-
-    //     vm.startPrank(bob);
-    //     ERC20(acceptedToken).approve(address(participator), amountToParticipate);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit IParticipator.Allocated(bob, acceptedToken, amountToParticipate);
-    //     participator.participate(acceptedToken, amountToParticipate);
-    //     vm.stopPrank();
-
-    //     assertEq(participator.allocations(bob), amountToParticipate);
-    // }
-
-    // function testCanSetNewRanges() external {
-    //     uint256 numberOfRanges = participator.rangesLength();
-
-    //     IParticipator.WalletRange[] memory oldRanges = new IParticipator.WalletRange[](numberOfRanges);
-    //     IParticipator.WalletRange[] memory newRanges = new IParticipator.WalletRange[](numberOfRanges);
-
-    //     // Deep copy oldRanges
-    //     for (uint256 i = 0; i < numberOfRanges; i++) {
-    //         oldRanges[i] = IParticipator.WalletRange({
-    //             name: participator.getRange(i).name,
-    //             min: participator.getRange(i).min,
-    //             max: participator.getRange(i).max
-    //         });
-    //     }
-
-    //     for (uint256 i = 0; i < numberOfRanges; i++) {
-    //         newRanges[i] = IParticipator.WalletRange({
-    //             name: participator.getRange(i).name,
-    //             min: participator.getRange(i).min * 2,
-    //             max: participator.getRange(i).max * 2
-    //         });
-    //     }
-
-    //     vm.startPrank(owner);
-    //     participator.setRanges(newRanges);
-    //     vm.stopPrank();
-
-    //     for (uint256 i = 0; i < oldRanges.length; i++) {
-    //         IParticipator.WalletRange memory updatedRange = participator.getRange(i);
-
-    //         assertEq(updatedRange.min, oldRanges[i].min * 2);
-    //         assertEq(updatedRange.max, oldRanges[i].max * 2);
-    //     }
-    // }
-
-    // function testCanWithdrawRaisedAmount()
-    //     external
-    //     walletLinked(walletInTiers)
-    //     isWhitelisted(walletInTiers)
-    //     hasBalance(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
-    //     participated(walletInTiers, acceptedToken, participator.getWalletRange(walletInTiers).min)
-    // {
-    //     uint256 tokenBalanceBefore = ERC20(acceptedToken).balanceOf(address(participator));
-    //     uint256 tokenOwnerBalanceBefore = ERC20(acceptedToken).balanceOf(owner);
-
-    //     vm.startPrank(owner);
-    //     participator.withdraw();
-    //     vm.stopPrank();
-
-    //     uint256 tokenBalanceAfter = ERC20(acceptedToken).balanceOf(address(participator));
-    //     uint256 tokenOwnerBalanceAfter = ERC20(acceptedToken).balanceOf(owner);
-
-    //     assertEq(tokenBalanceAfter, 0);
-    //     assertEq(tokenOwnerBalanceAfter, tokenOwnerBalanceBefore + tokenBalanceBefore);
-    // }
 }

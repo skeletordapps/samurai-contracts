@@ -124,7 +124,7 @@ contract PrivateParticipator is Ownable, Pausable, ReentrancyGuard {
      * @param _wallets list of wallets
      * @param _purchases list of purchases of each wallet
      */
-    function _setMaxPermitted(address[] memory _wallets, uint256[] memory _purchases) private nonReentrant {
+    function _setMaxPermitted(address[] memory _wallets, uint256[] memory _purchases) private onlyOwner nonReentrant {
         require(_wallets.length > 0, "wallets cannot be empty");
         require(
             _wallets.length == _purchases.length,
