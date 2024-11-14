@@ -20,15 +20,15 @@ contract LPStakingTest is Test {
     address lpToken;
     address rewardsToken;
     address gauge;
-    address gaugeRewardsToken;
+    address points;
+
+    uint256 pointsPerToken;
+    uint256 threeMonths = 90 days;
+    uint256 amountToStake = 10 ether;
 
     address owner;
     address bob;
     address mary;
-
-    uint256 period = 60 days;
-    uint256 minToStake;
-    uint256 threeMonths;
 
     function setUp() public virtual {
         RPC_URL = vm.envString("BASE_RPC_URL");
@@ -36,7 +36,7 @@ contract LPStakingTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployLPStaking();
-        (staking, lpToken, rewardsToken, gauge, gaugeRewardsToken) = deployer.runForTests();
+        (staking, lpToken, rewardsToken, gauge, points) = deployer.runForTests();
         owner = staking.owner();
         bob = vm.addr(1);
         vm.label(bob, "bob");
@@ -44,130 +44,85 @@ contract LPStakingTest is Test {
         mary = vm.addr(2);
         vm.label(mary, "mary");
 
-        minToStake = staking.minToStake();
-        threeMonths = staking.THREE_MONTHS();
+        pointsPerToken = staking.pointsPerToken();
         deal(rewardsToken, address(staking), 100 ether);
     }
 
     // CONSTRUCTOR
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(staking.owner(), owner);
         assertEq(address(staking.lpToken()), lpToken);
         assertEq(address(staking.rewardsToken()), rewardsToken);
         assertEq(address(staking.gauge()), gauge);
+        assertEq(pointsPerToken, 1071 ether);
     }
-
-    // // GET FEES
-
-    // function testGetFees() external {
-    //     vm.startPrank(bob);
-    //     uint256 amount = 400e18;
-    //     uint256 currentFee = staking.withdrawEarlierFee().intoUint256();
-
-    //     uint256 result = staking.getFees(amount);
-
-    //     assertEq(result, amount * currentFee / 1e18);
-    //     vm.stopPrank();
-    // }
-
-    // // INIT
-
-    // modifier initialized(uint256 duration, uint256 rewardsPerDay) {
-    //     vm.startPrank(owner);
-    //     staking.init(duration, rewardsPerDay);
-    //     vm.stopPrank();
-    //     _;
-    // }
-
-    // function testCanInit() external  {
-    //     assertEq(staking.periodFinish(), block.timestamp + period);
-    //     assertFalse(staking.paused());
-    // }
-
-    // function testRevertWhenAlreadyInitialized() external  {
-    //     vm.startPrank(owner);
-    //     vm.expectRevert(Pausable.ExpectedPause.selector);
-    //     staking.init(period, 10 ether);
-    //     vm.stopPrank();
-    // }
 
     modifier hasBalance(address wallet, uint256 amount) {
         deal(lpToken, wallet, amount);
         _;
     }
 
-    // STAKING
-
-    // function testRevertStakeWhenPeriodFinished() external {
-    //     vm.warp(staking.periodFinish() + 1 minutes);
-
-    //     vm.startPrank(bob);
-    //     vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
-    //     staking.stake(1 ether);
-    //     vm.stopPrank();
-    // }
-
     function testRevertStakeWhenAmountIsZero() external {
-        // vm.startPrank(bob);
-        // vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient amount"));
-        // staking.stake(0, threeMonths);
-        // vm.stopPrank();
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient amount"));
+        staking.stake(0, threeMonths);
+        vm.stopPrank();
     }
 
     function testRevertStakeWithInvalidPeriod() external {
-        // vm.startPrank(bob);
-        // vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Invalid period"));
-        // staking.stake(minToStake, threeMonths + 1);
-        // vm.stopPrank();
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Invalid period"));
+        staking.stake(amountToStake, threeMonths + 1);
+        vm.stopPrank();
     }
 
-    function testCanStake() external hasBalance(bob, minToStake) {
-        // vm.startPrank(bob);
-        // ERC20(lpToken).approve(address(staking), minToStake);
-        // vm.expectEmit(true, true, true, true);
-        // emit ILPStaking.Staked(bob, minToStake, 0);
-        // staking.stake(minToStake, threeMonths);
-        // vm.stopPrank();
+    function testCanStake() external hasBalance(bob, amountToStake) {
+        vm.startPrank(bob);
+        ERC20(lpToken).approve(address(staking), amountToStake);
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.Staked(bob, amountToStake, 0);
+        staking.stake(amountToStake, threeMonths);
+        vm.stopPrank();
 
-        // (, uint256 stakedAmount,, uint256 stakedAt,,,, uint256 claimedRewards,) = staking.stakes(bob, 0);
+        (uint256 stakedAmount,, uint256 stakedAt,,,, uint256 claimedRewards,) = staking.stakes(bob, 0);
 
-        // assertEq(stakedAmount, minToStake);
-        // assertEq(stakedAt, block.timestamp);
-        // assertEq(claimedRewards, 0);
-        // assertEq(IGauge(gauge).balanceOf(address(staking)), stakedAmount);
-        // assertEq(staking.totalStaked(), stakedAmount);
+        assertEq(stakedAmount, amountToStake);
+        assertEq(stakedAt, block.timestamp);
+        assertEq(claimedRewards, 0);
+        assertEq(IGauge(gauge).balanceOf(address(staking)), stakedAmount);
+        assertEq(staking.totalStaked(), stakedAmount);
     }
 
     modifier hasStaked(address wallet, uint256 amount, uint256 stakePeriod) {
         vm.startPrank(wallet);
         ERC20(lpToken).approve(address(staking), amount);
-        // staking.stake(amount, stakePeriod);
+        staking.stake(amount, stakePeriod);
         vm.stopPrank();
         _;
     }
 
     function testRevertStakeWhenMaxStakesReached()
         external
-        hasBalance(bob, minToStake * 5)
-        hasStaked(bob, minToStake, threeMonths)
-        hasStaked(bob, minToStake, threeMonths)
-        hasStaked(bob, minToStake, threeMonths)
-        hasStaked(bob, minToStake, threeMonths)
-        hasStaked(bob, minToStake, threeMonths)
+        hasBalance(bob, amountToStake * 5)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(bob, amountToStake, threeMonths)
     {
-        // vm.startPrank(bob);
-        // vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Max stakes reached"));
-        // staking.stake(minToStake, threeMonths);
-        // vm.stopPrank();
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Max stakes reached"));
+        staking.stake(amountToStake, threeMonths);
+        vm.stopPrank();
     }
 
     // WITHDRAW
 
     function testRevertWithdrawIfAmountIsZero()
         external
-        hasBalance(bob, minToStake)
-        hasStaked(bob, minToStake, threeMonths)
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
     {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient amount"));
@@ -178,286 +133,244 @@ contract LPStakingTest is Test {
     function testRevertWithInvalidStakeIndex() external {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Invalid stake index"));
-        staking.withdraw(minToStake, 0);
+        staking.withdraw(amountToStake, 0);
         vm.stopPrank();
     }
 
-    // function testRevertWithdrawBeforePeriodEnds()
-    //     external
-    //     hasBalance(bob, minToStake)
-    //     hasStaked(bob, minToStake, threeMonths)
-    // {
-    //     vm.startPrank(bob);
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Cannot withdraw before period ends")
-    //     );
-    //     staking.withdraw(minToStake, 0);
-    //     vm.stopPrank();
-    // }
-
     function testRevertWithdrawIfAmountIsGreaterThanStakedBalance()
         external
-        hasBalance(bob, minToStake)
-        hasStaked(bob, minToStake, threeMonths)
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
     {
         vm.warp(block.timestamp + threeMonths + 1 hours);
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient amount"));
-        staking.withdraw(minToStake * 2, 0);
+        staking.withdraw(amountToStake * 2, 0);
         vm.stopPrank();
     }
 
     function testCanWithdrawStakedBalance()
         external
-        hasBalance(bob, minToStake)
-        hasStaked(bob, minToStake, threeMonths)
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
     {
-        // vm.warp(block.timestamp + threeMonths + 1 hours);
-        // uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
+        vm.warp(block.timestamp + threeMonths + 1 hours);
+        uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-        // vm.startPrank(bob);
-        // vm.expectEmit(true, true, true, true);
-        // emit ILPStaking.Withdrawn(bob, minToStake, 0);
-        // staking.withdraw(minToStake, 0);
-        // vm.stopPrank();
+        vm.startPrank(bob);
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.Withdrawn(bob, amountToStake, 0);
+        staking.withdraw(amountToStake, 0);
+        vm.stopPrank();
 
-        // (, uint256 stakedAmount, uint256 withdrawnAmount,,,,,,) = staking.stakes(bob, 0);
-        // uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
+        (uint256 stakedAmount, uint256 withdrawnAmount,,,,,,) = staking.stakes(bob, 0);
+        uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-        // assertEq(initialWalletBalance + minToStake, endWalletBalance);
-        // assertEq(stakedAmount - withdrawnAmount, 0);
+        assertEq(initialWalletBalance + amountToStake, endWalletBalance);
+        assertEq(stakedAmount - withdrawnAmount, 0);
     }
 
-    // function testPayTaxToWithdrawEarlier() external hasBalance(bob, minToStake) hasStaked(bob, minToStake) {
-    //     uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
-    //     (uint256 lockedAmount,,,) = staking.stakings(bob);
+    function testRevertWithdrawBeforePeriodEnds()
+        external
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+    {
+        vm.startPrank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Not allowed to withdraw in staking period")
+        );
+        staking.withdraw(amountToStake, 0);
+        vm.stopPrank();
+    }
 
-    //     uint256 tax = staking.getFees(lockedAmount);
+    function testCanWithdrawAfterPeriodFinish()
+        external
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+    {
+        (,,, uint256 withdrawTime,,,,) = staking.stakes(bob, 0);
+        vm.warp(withdrawTime + 3 days);
 
-    //     vm.startPrank(bob);
-    //     vm.expectEmit(true, true, true, false);
-    //     emit ILPStaking.StakeWithdrawn(bob, minToStake - tax);
-    //     staking.withdraw(minToStake);
-    //     vm.stopPrank();
+        uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-    //     uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
+        vm.startPrank(bob);
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.Withdrawn(bob, amountToStake, 0);
+        staking.withdraw(amountToStake, 0);
+        vm.stopPrank();
 
-    //     assertEq(initialWalletBalance + minToStake - tax, endWalletBalance);
-    // }
+        uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
-    // function testCanWithdrawAfterPeriodFinish() external hasBalance(bob, minToStake) hasStaked(bob, minToStake) {
-    //     vm.warp(staking.periodFinish() + 3 days);
+        assertEq(initialWalletBalance + amountToStake, endWalletBalance);
+        assertEq(staking.totalWithdrawn(), amountToStake);
+    }
 
-    //     uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
+    modifier withdrawn(address wallet, uint256 amount, uint256 timestamp) {
+        if (timestamp > 0) vm.warp(block.timestamp + timestamp);
 
-    //     vm.startPrank(bob);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit ILPStaking.StakeWithdrawn(bob, minToStake);
-    //     staking.withdraw(minToStake);
-    //     vm.stopPrank();
+        vm.startPrank(wallet);
+        staking.withdraw(amount, 0);
+        vm.stopPrank();
+        _;
+    }
 
-    //     (uint256 lockedAmount,,, uint256 rewardsEarned) = staking.stakings(bob);
-    //     uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
+    // REWARDS
 
-    //     assertEq(initialWalletBalance + minToStake, endWalletBalance);
-    //     assertEq(lockedAmount, 0);
-    //     assertTrue(rewardsEarned > 0);
-    // }
+    function testCanCheckRewards()
+        external
+        hasBalance(bob, amountToStake)
+        hasBalance(mary, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(mary, amountToStake, threeMonths)
+    {
+        uint256 bobRewards1 = staking.previewRewards(bob);
+        uint256 maryRewards1 = staking.previewRewards(mary);
 
-    // function testCanWithdrawAfterEmergencyWithdraw() external hasBalance(bob, minToStake) hasStaked(bob, minToStake) {
-    //     uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
+        assertEq(bobRewards1, 0);
+        assertEq(maryRewards1, 0);
 
-    //     vm.warp(block.timestamp + 2 days); // to increase rewards
-    //     uint256 initialRewards = staking.calculateRewards(bob);
+        uint256 timestamp = block.timestamp + 100 days;
 
-    //     vm.startPrank(owner);
-    //     staking.emergencyWithdraw();
-    //     vm.stopPrank();
+        vm.warp(timestamp);
 
-    //     vm.warp(block.timestamp + 10 weeks);
+        uint256 bobRewards2 = staking.previewRewards(bob);
+        uint256 maryRewards2 = staking.previewRewards(mary);
 
-    //     vm.startPrank(bob);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit ILPStaking.StakeWithdrawn(bob, minToStake);
-    //     staking.withdraw(minToStake);
-    //     vm.stopPrank();
+        assertTrue(bobRewards2 > bobRewards1);
+        assertTrue(maryRewards2 > maryRewards1);
 
-    //     (uint256 endLockedAmount,,,) = staking.stakings(bob);
-    //     uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
-    //     uint256 endRewards = staking.calculateRewards(bob);
+        // timestamp += 200 days;
 
-    //     assertEq(initialWalletBalance + minToStake, endWalletBalance);
-    //     assertEq(endLockedAmount, 0);
-    //     assertEq(initialRewards, endRewards);
-    //     assertTrue(endRewards > 0);
-    // }
+        // vm.warp(timestamp);
 
-    // modifier withdrawn(address wallet, uint256 amount, uint256 timestamp) {
-    //     if (timestamp > 0) vm.warp(block.timestamp + timestamp);
+        // uint256 bobRewards3 = staking.previewRewards(bob);
+        // uint256 maryRewards3 = staking.previewRewards(mary);
 
-    //     vm.startPrank(wallet);
-    //     staking.withdraw(amount);
-    //     vm.stopPrank();
-    //     _;
-    // }
+        // assertTrue(bobRewards3 > bobRewards2);
+        // assertTrue(maryRewards3 > maryRewards2);
+    }
 
-    // // CALCULATE REWARDS
+    function testRevertClaimStakeWhenTotalRewardsIsZero() external {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient rewards to claim"));
+        staking.claimRewards();
+        vm.stopPrank();
+    }
 
-    // function testCanCheckRewards()
-    //     external
-    //     hasBalance(bob, minToStake)
-    //     hasBalance(mary, minToStake)
-    //     hasStaked(bob, minToStake)
-    //     hasStaked(mary, minToStake)
-    // {
-    //     uint256 bobRewards1 = staking.calculateRewards(bob);
-    //     uint256 maryRewards1 = staking.calculateRewards(mary);
+    function testRevertClaimStakeWhenWalletRewardsAreZero()
+        external
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+    {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient rewards to claim"));
+        staking.claimRewards();
+        vm.stopPrank();
+    }
 
-    //     assertEq(bobRewards1, 0);
-    //     assertEq(maryRewards1, 0);
+    function testCanClaimRewards() external hasBalance(bob, amountToStake) hasStaked(bob, amountToStake, threeMonths) {
+        vm.warp(block.timestamp + 10 days);
+        uint256 initialRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
+        uint256 initialRewards = staking.previewRewards(bob);
 
-    //     vm.warp(block.timestamp + 10 days);
+        vm.startPrank(bob);
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.RewardsClaimed(bob, initialRewards);
+        staking.claimRewards();
+        vm.stopPrank();
 
-    //     uint256 bobRewards2 = staking.calculateRewards(bob);
-    //     uint256 maryRewards2 = staking.calculateRewards(mary);
+        uint256 zeroRewards = staking.previewRewards(bob);
+        uint256 endRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
 
-    //     assertTrue(bobRewards2 > bobRewards1);
-    //     assertTrue(maryRewards2 > maryRewards1);
+        assertEq(zeroRewards, 0);
+        assertEq(endRewardsBalance, initialRewardsBalance + initialRewards);
+    }
 
-    //     vm.warp(block.timestamp + 10 days);
+    // POINTS
 
-    //     uint256 bobRewards3 = staking.calculateRewards(bob);
-    //     uint256 maryRewards3 = staking.calculateRewards(mary);
+    function testCanPreviewClaimablePoints()
+        public
+        hasBalance(bob, amountToStake * 3)
+        hasStaked(bob, amountToStake * 3, threeMonths * 2)
+    {
+        uint256 expectedPoints = ud(amountToStake * 3).mul(ud(1071 ether)).mul(ud(3 ether)).intoUint256();
+        uint256 claimablePoints = staking.previewClaimablePoints(bob, 0);
 
-    //     assertTrue(bobRewards3 > bobRewards2);
-    //     assertTrue(maryRewards3 > maryRewards2);
-    // }
+        assertEq(claimablePoints, expectedPoints);
+    }
 
-    // // CLAIM REWARDS
+    function testCanClaimPoints()
+        public
+        hasBalance(bob, amountToStake * 3)
+        hasStaked(bob, amountToStake * 3, threeMonths * 2)
+    {
+        uint256 expectedPoints = ud(amountToStake * 3).mul(ud(1071 ether)).mul(ud(3 ether)).intoUint256();
 
-    // function testRevertClaimStakeWhenTotalRewardsIsZero() external {
-    //     vm.startPrank(bob);
-    //     vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "No rewards available"));
-    //     staking.claimRewards();
-    //     vm.stopPrank();
-    // }
+        vm.startPrank(bob);
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.PointsClaimed(bob, expectedPoints);
+        staking.claimPoints();
+        vm.stopPrank();
 
-    // function testRevertClaimStakeWhenWalletRewardsAreZero()
-    //     external
-    //     hasBalance(bob, minToStake)
-    //     hasStaked(bob, minToStake)
-    // {
-    //     vm.warp(block.timestamp + 2 days);
+        (,,,,, uint256 claimedPoints,,) = staking.stakes(bob, 0);
+        assertEq(claimedPoints, expectedPoints);
+        assertEq(staking.previewClaimablePoints(bob, 0), 0);
+        assertEq(ERC20(points).balanceOf(bob), expectedPoints);
+    }
 
-    //     vm.startPrank(bob);
-    //     vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "No rewards available"));
-    //     staking.claimRewards();
-    //     vm.stopPrank();
-    // }
+    // EMERGENCY WITHDRAW
 
-    // function testCanClaimRewards() external hasBalance(bob, minToStake) hasStaked(bob, minToStake) {
-    //     vm.warp(block.timestamp + 10 days);
-    //     uint256 initialRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
-    //     uint256 initialRewards = staking.calculateRewards(bob);
+    function testCanDoEmergencyWithdraw()
+        external
+        hasBalance(bob, amountToStake)
+        hasBalance(mary, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(mary, amountToStake, threeMonths)
+    {
+        vm.warp(block.timestamp + 60 days);
 
-    //     vm.startPrank(bob);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit ILPStaking.RewardsClaimed(block.timestamp, bob, initialRewards);
-    //     staking.claimRewards();
-    //     vm.stopPrank();
+        uint256 lpInGauge = IGauge(gauge).balanceOf(address(staking));
+        uint256 rewardsInGauge = IGauge(gauge).earned(address(staking));
 
-    //     uint256 zeroRewards = staking.calculateRewards(bob);
-    //     uint256 endRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
+        uint256 lpInContract = ERC20(lpToken).balanceOf(address(staking));
+        uint256 rewardsInContract = ERC20(rewardsToken).balanceOf(address(staking));
 
-    //     assertEq(zeroRewards, 0);
-    //     assertEq(endRewardsBalance, initialRewardsBalance + initialRewards);
-    // }
+        uint256 ownerInitialLP = ERC20(lpToken).balanceOf(owner);
+        uint256 ownerInitialRewards = ERC20(rewardsToken).balanceOf(owner);
 
-    // // CLAIM FEES
+        vm.startPrank(owner);
+        staking.emergencyWithdraw();
+        vm.stopPrank();
 
-    // function testCanClaimFees()
-    //     external
-    //     hasBalance(bob, minToStake)
-    //     hasBalance(mary, minToStake)
-    //     hasStaked(bob, minToStake)
-    //     hasStaked(mary, minToStake)
-    //     withdrawn(bob, minToStake, 0)
-    //     withdrawn(mary, minToStake, 0)
-    // {
-    //     uint256 feesToClaim = staking.getFees(minToStake) * 2;
-    //     uint256 currentFeesAvailable = staking.collectedFees();
+        uint256 ownerEndLPBalance = ERC20(lpToken).balanceOf(owner);
+        uint256 ownerEndRewards = ERC20(rewardsToken).balanceOf(owner);
 
-    //     assertEq(feesToClaim, currentFeesAvailable);
+        assertEq(IGauge(gauge).earned(address(staking)), 0);
+        assertEq(IGauge(gauge).balanceOf(address(staking)), 0);
 
-    //     uint256 ownerBalance = ERC20(lpToken).balanceOf(owner);
+        assertEq(ownerEndLPBalance, ownerInitialLP + lpInGauge + lpInContract);
+        assertEq(ownerEndRewards, ownerInitialRewards + rewardsInGauge + rewardsInContract);
 
-    //     vm.startPrank(owner);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit ILPStaking.FeesWithdrawn(feesToClaim);
-    //     staking.collectFees();
-    //     vm.stopPrank();
+        assertTrue(staking.paused());
+    }
 
-    //     uint256 endOwnerBalance = ERC20(lpToken).balanceOf(owner);
+    // UPDATE SENSTIVE DATA
 
-    //     assertEq(staking.collectedFees(), 0);
-    //     assertEq(endOwnerBalance, ownerBalance + feesToClaim);
-    // }
+    function testRevertUpdateMultipliersWhenValuesAreLowerThanCurrent() public {
+        vm.startPrank(owner);
 
-    // // EMERGENCY WITHDRAW
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Invalid multiplier"));
+        staking.updateMultipliers(0.4 ether, 2 ether, 4 ether, 6 ether);
+        vm.stopPrank();
+    }
 
-    // function testCanDoEmergencyWithdraw()
-    //     external
-    //     hasBalance(bob, minToStake)
-    //     hasBalance(mary, minToStake)
-    //     hasStaked(bob, minToStake)
-    //     hasStaked(mary, minToStake)
-    // {
-    //     uint256 feesToClaim = staking.getFees(minToStake) * 2;
+    function testCanUpdateMultipliers() public {
+        vm.startPrank(owner);
 
-    //     vm.startPrank(owner);
-    //     vm.expectEmit(true, true, true, false);
-    //     emit ILPStaking.EmergencyWithdrawnFunds(feesToClaim);
-    //     staking.emergencyWithdraw();
-    //     vm.stopPrank();
-
-    //     assertEq(staking.collectedFees(), 0);
-    //     assertEq(staking.periodFinish(), block.timestamp);
-    //     assertTrue(staking.paused());
-    // }
-
-    // // UPDATE SENSTIVE DATA
-
-    // function testUpdateWithdrawEarlierFeeLockTime() external {
-    //     vm.startPrank(owner);
-    //     uint256 newLockTime = staking.withdrawEarlierFeeLockTime() * 2;
-    //     staking.updateWithdrawEarlierFeeLockTime(newLockTime);
-    //     vm.stopPrank();
-
-    //     assertEq(staking.withdrawEarlierFeeLockTime(), newLockTime);
-    // }
-
-    // function testUpdateWithdrawEarlierFee() external {
-    //     vm.startPrank(owner);
-    //     uint256 newFee = staking.withdrawEarlierFee().intoUint256() * 2;
-    //     staking.updateWithdrawEarlierFee(newFee);
-    //     vm.stopPrank();
-
-    //     assertEq(staking.withdrawEarlierFee().intoUint256(), newFee);
-    // }
-
-    // function testRevertUpdateminToStakeWhenZero() external {
-    //     vm.startPrank(owner);
-    //     vm.expectRevert(ILPStaking.ILPStaking__Error.selector);
-    //     staking.updateminToStake(0);
-    //     vm.stopPrank();
-    // }
-
-    // function testUpdateminToStake() external {
-    //     vm.startPrank(owner);
-    //     uint256 newminToStake = staking.minToStake() * 2;
-    //     staking.updateminToStake(newminToStake);
-    //     vm.stopPrank();
-
-    //     assertEq(staking.minToStake(), newminToStake);
-    // }
+        // 1e18, 3e18, 5e18, 7e18
+        vm.expectEmit(true, true, true, true);
+        emit ILPStaking.MultipliersUpdated(2 ether, 4 ether, 6 ether, 8 ether);
+        staking.updateMultipliers(2 ether, 4 ether, 6 ether, 8 ether);
+        vm.stopPrank();
+    }
 }

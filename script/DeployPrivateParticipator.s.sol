@@ -6,7 +6,7 @@ import {PrivateParticipator} from "../src/PrivateParticipator.sol";
 
 contract DeployPrivateParticipator is Script {
     function run() external returns (PrivateParticipator participator) {
-        uint256 maxAllocations = 200_000 * 1e6;
+        uint256 maxAllocations = 25_000e6;
         uint256 pricePerToken = 145e6;
         uint256 minPerWallet = 100e6;
         (address[] memory wallets, uint256[] memory purchases) = loadWallets();

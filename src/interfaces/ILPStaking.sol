@@ -5,12 +5,11 @@ import {UD60x18} from "@prb/math/src/UD60x18.sol";
 
 interface ILPStaking {
     struct StakeInfo {
-        uint256 stakeIndex;
         uint256 stakedAmount;
         uint256 withdrawnAmount;
         uint256 stakedAt;
-        // uint256 withdrawTime;
-        // uint256 stakePeriod;
+        uint256 withdrawTime;
+        uint256 stakePeriod;
         uint256 claimedPoints;
         uint256 claimedRewards;
         uint256 lastRewardsClaimedAt;

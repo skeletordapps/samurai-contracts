@@ -15,16 +15,16 @@ contract DeployLPStaking is Script {
         returns (LPStaking lpStaking, address lpToken, address rewardsToken, address gauge, address points)
     {
         lpToken = vm.envAddress("BASE_LP_TOKEN_ADDRESS");
-        rewardsToken = vm.envAddress("BASE_REWARDS_TOKEN_ADDRESS");
+        rewardsToken = vm.envAddress("BASE_GAUGE_REWARDS_TOKEN_ADDRESS");
         gauge = vm.envAddress("BASE_GAUGE_ADDRESS");
 
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
-        uint256 minToStake = 30_000 ether;
+        uint256 pointsPerToken = 1071 ether;
         points = address(0);
 
         vm.startBroadcast(privateKey);
 
-        lpStaking = new LPStaking(lpToken, rewardsToken, gauge, points, minToStake);
+        lpStaking = new LPStaking(lpToken, rewardsToken, gauge, points, pointsPerToken);
         vm.stopBroadcast();
 
         return (lpStaking, lpToken, rewardsToken, gauge, points);
@@ -35,17 +35,44 @@ contract DeployLPStaking is Script {
         returns (LPStaking lpStaking, address lpToken, address rewardsToken, address gauge, address points)
     {
         lpToken = vm.envAddress("BASE_LP_TOKEN_ADDRESS");
-        rewardsToken = vm.envAddress("BASE_REWARDS_TOKEN_ADDRESS");
+        rewardsToken = vm.envAddress("BASE_GAUGE_REWARDS_TOKEN_ADDRESS");
         gauge = vm.envAddress("BASE_GAUGE_ADDRESS");
 
-        uint256 minToStake = 0.000001 ether;
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast();
+        uint256 pointsPerToken = 1071 ether;
+
+        vm.startBroadcast(privateKey);
 
         SamuraiPoints sp = new SamuraiPoints();
         points = address(sp);
 
-        lpStaking = new LPStaking(lpToken, rewardsToken, gauge, points, minToStake);
+        lpStaking = new LPStaking(lpToken, rewardsToken, gauge, points, pointsPerToken);
+        sp.grantRole(IPoints.Roles.MINTER, address(lpStaking));
+
+        vm.stopBroadcast();
+
+        return (lpStaking, lpToken, rewardsToken, gauge, points);
+    }
+
+    function runForInvariantTests()
+        external
+        returns (LPStaking lpStaking, address lpToken, address rewardsToken, address gauge, address points)
+    {
+        lpToken = vm.envAddress("BASE_LP_TOKEN_ADDRESS");
+        rewardsToken = vm.envAddress("BASE_GAUGE_REWARDS_TOKEN_ADDRESS");
+        gauge = vm.envAddress("BASE_GAUGE_ADDRESS");
+
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+
+        uint256 pointsPerToken = 1071 ether;
+
+        vm.startBroadcast(privateKey);
+
+        SamuraiPoints sp = new SamuraiPoints();
+        points = address(sp);
+
+        lpStaking = new LPStaking(lpToken, rewardsToken, gauge, points, pointsPerToken);
         sp.grantRole(IPoints.Roles.MINTER, address(lpStaking));
 
         vm.stopBroadcast();

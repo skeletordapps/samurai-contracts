@@ -17,7 +17,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
     uint256 public constant MAX_STAKES_PER_WALLET = 5;
 
-    // Define lock periods (in seconds)
+    // Define stake periods (in seconds)
     uint256 public constant THREE_MONTHS = 3 * 30 days;
     uint256 public constant SIX_MONTHS = 6 * 30 days;
     uint256 public constant NINE_MONTHS = 9 * 30 days;
@@ -27,108 +27,65 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     ERC20 public immutable rewardsToken;
     IGauge public immutable gauge;
     IPoints private immutable iPoints;
-    uint256 public minToStake;
-    uint256 public nextStakeIndex;
+    uint256 public pointsPerToken;
+
     uint256 public totalStaked;
     uint256 public totalWithdrawn;
 
-    uint256 public collectedFees;
-    UD60x18 public withdrawEarlierFee = ud(0.1e18);
-
-    mapping(address wallet => ILPStaking.StakeInfo[] stakes) public stakes;
+    mapping(address wallet => ILPStaking.StakeInfo[] walletStakes) public stakes;
     mapping(uint256 period => uint256 multiplier) public multipliers;
     mapping(address wallet => uint256 claimedAt) lastClaims;
 
-    constructor(address _lpToken, address _rewardsToken, address _gauge, address _points, uint256 _minToStake)
+    constructor(address _lpToken, address _rewardsToken, address _gauge, address _points, uint256 _pointsPerToken)
         Ownable(msg.sender)
     {
         require(_lpToken != address(0), ILPStaking.ILPStaking__Error("Invalid address _lpToken"));
         require(_rewardsToken != address(0), ILPStaking.ILPStaking__Error("Invalid address _rewardsToken"));
         require(_gauge != address(0), ILPStaking.ILPStaking__Error("Invalid address for _gauge"));
         require(_points != address(0), ILPStaking.ILPStaking__Error("Invalid address for _points"));
-        require(_minToStake > 0, ILPStaking.ILPStaking__Error("Invalid amount for _minToStake"));
 
         lpToken = ERC20(_lpToken);
         rewardsToken = ERC20(_rewardsToken);
         gauge = IGauge(_gauge);
         iPoints = IPoints(_points);
-        minToStake = _minToStake;
+        pointsPerToken = _pointsPerToken;
 
-        multipliers[THREE_MONTHS] = 1e18;
-        multipliers[SIX_MONTHS] = 3e18;
-        multipliers[NINE_MONTHS] = 5e18;
-        multipliers[TWELVE_MONTHS] = 7e18;
+        multipliers[THREE_MONTHS] = 1 ether;
+        multipliers[SIX_MONTHS] = 3 ether;
+        multipliers[NINE_MONTHS] = 5 ether;
+        multipliers[TWELVE_MONTHS] = 7 ether;
     }
 
     /**
      * @notice Stake lp tokens to earn rewards and points based on lock tier and period
      * @param amount Amount of lp tokens to be staked
      */
-    function stake(uint256 amount) external nonReentrant whenNotPaused {
+    function stake(uint256 amount, uint256 period) external nonReentrant whenNotPaused {
+        require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
         require(stakes[msg.sender].length < MAX_STAKES_PER_WALLET, ILPStaking.ILPStaking__Error("Max stakes reached"));
-        require(amount >= minToStake, ILPStaking.ILPStaking__Error("Insufficient amount"));
+        require(multipliers[period] > 0, ILPStaking.ILPStaking__Error("Invalid period"));
 
         ERC20(lpToken).safeTransferFrom(msg.sender, address(this), amount);
 
-        uint256 stakeIndex = nextStakeIndex;
-
         ILPStaking.StakeInfo memory newStake = ILPStaking.StakeInfo({
-            stakeIndex: stakeIndex,
             stakedAmount: amount,
             withdrawnAmount: 0,
             stakedAt: block.timestamp,
+            withdrawTime: block.timestamp + period,
+            stakePeriod: period,
             claimedPoints: 0,
             claimedRewards: 0,
             lastRewardsClaimedAt: 0
         });
 
         stakes[msg.sender].push(newStake);
-
         totalStaked += amount;
-        nextStakeIndex++;
-
-        emit ILPStaking.Staked(msg.sender, amount, stakeIndex);
+        emit ILPStaking.Staked(msg.sender, amount, stakes[msg.sender].length - 1);
 
         // Approve and deposit LPs in the gauge system
         lpToken.forceApprove(address(gauge), amount);
         gauge.deposit(amount);
     }
-    // function stake(uint256 amount, uint256 stakePeriod) external nonReentrant whenNotPaused {
-    //     require(stakes[msg.sender].length < MAX_STAKES_PER_WALLET, ILPStaking.ILPStaking__Error("Max stakes reached"));
-    //     require(amount >= minToStake, ILPStaking.ILPStaking__Error("Insufficient amount"));
-    //     require(
-    //         stakePeriod == THREE_MONTHS || stakePeriod == SIX_MONTHS || stakePeriod == NINE_MONTHS
-    //             || stakePeriod == TWELVE_MONTHS,
-    //         ILPStaking.ILPStaking__Error("Invalid period")
-    //     );
-
-    //     ERC20(lpToken).safeTransferFrom(msg.sender, address(this), amount);
-
-    //     uint256 stakeIndex = nextStakeIndex;
-
-    //     ILPStaking.StakeInfo memory newStake = ILPStaking.StakeInfo({
-    //         stakeIndex: stakeIndex,
-    //         stakedAmount: amount,
-    //         withdrawnAmount: 0,
-    //         stakedAt: block.timestamp,
-    //         withdrawTime: block.timestamp + stakePeriod,
-    //         stakePeriod: stakePeriod,
-    //         claimedPoints: 0,
-    //         claimedRewards: 0,
-    //         lastRewardsClaimedAt: 0
-    //     });
-
-    //     stakes[msg.sender].push(newStake);
-
-    //     totalStaked += amount;
-    //     nextStakeIndex++;
-
-    //     emit ILPStaking.Staked(msg.sender, amount, stakeIndex);
-
-    //     // Approve and deposit LPs in the gauge system
-    //     lpToken.forceApprove(address(gauge), amount);
-    //     gauge.deposit(amount);
-    // }
 
     /**
      * @notice Withdraw staked lp tokens and earned points after the lock period ends
@@ -137,98 +94,31 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      */
     function withdraw(uint256 amount, uint256 stakeIndex) external nonReentrant {
         require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
-
         require(stakeIndex < stakes[msg.sender].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
         ILPStaking.StakeInfo storage stakeInfo = stakes[msg.sender][stakeIndex];
 
-        // require(
-        //     block.timestamp >= stakeInfo.withdrawTime,
-        //     ILPStaking.ILPStaking__Error("Cannot withdraw before period ends")
-        // );
+        require(
+            block.timestamp >= stakeInfo.withdrawTime,
+            ILPStaking.ILPStaking__Error("Not allowed to withdraw in staking period")
+        );
         require(
             amount <= stakeInfo.stakedAmount - stakeInfo.withdrawnAmount,
             ILPStaking.ILPStaking__Error("Insufficient amount")
         );
 
-        uint256 gaugeBalance = IGauge(gauge).balanceOf(address(this));
-        require(amount <= gaugeBalance, ILPStaking.ILPStaking__Error("Exceeds balance"));
+        require(amount <= gauge.balanceOf(address(this)), ILPStaking.ILPStaking__Error("Exceeds balance"));
 
-        uint256 fee;
-        if (block.timestamp < stakeInfo.stakedAt + THREE_MONTHS) {
-            fee = getFees(amount);
-            collectedFees += fee;
-        }
-
-        stakeInfo.withdrawnAmount += amount - fee;
+        stakeInfo.withdrawnAmount += amount;
         totalStaked -= amount;
         totalWithdrawn += amount;
         emit ILPStaking.Withdrawn(msg.sender, amount, stakeIndex);
 
         // Remove LP from the gauge
-        IGauge(gauge).withdraw(amount);
+        gauge.withdraw(amount);
 
         // Send LP back to staker
         ERC20(lpToken).safeTransfer(msg.sender, amount);
     }
-    // function withdraw(uint256 amount, uint256 stakeIndex) external nonReentrant {
-    //     require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
-
-    //     require(stakeIndex < stakes[msg.sender].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
-    //     ILPStaking.StakeInfo storage stakeInfo = stakes[msg.sender][stakeIndex];
-
-    //     // require(
-    //     //     block.timestamp >= stakeInfo.withdrawTime,
-    //     //     ILPStaking.ILPStaking__Error("Cannot withdraw before period ends")
-    //     // );
-    //     require(
-    //         amount <= stakeInfo.stakedAmount - stakeInfo.withdrawnAmount,
-    //         ILPStaking.ILPStaking__Error("Insufficient amount")
-    //     );
-
-    //     uint256 gaugeBalance = IGauge(gauge).balanceOf(address(this));
-    //     require(amount <= gaugeBalance, ILPStaking.ILPStaking__Error("Exceeds balance"));
-
-    //     uint256 fee;
-    //     if (block.timestamp < stakeInfo.withdrawTime) {
-    //         fee = getFees(amount);
-    //         collectedFees += fee;
-    //     }
-
-    //     stakeInfo.withdrawnAmount += amount - fee;
-    //     totalStaked -= amount;
-    //     totalWithdrawn += amount;
-    //     emit ILPStaking.Withdrawn(msg.sender, amount, stakeIndex);
-
-    //     // Remove LP from the gauge
-    //     IGauge(gauge).withdraw(amount);
-
-    //     // Send LP back to staker
-    //     ERC20(lpToken).safeTransfer(msg.sender, amount);
-    // }
-
-    /**
-     * @notice Claim samurai points distributed for all wallet locks
-     * @dev Mint accrued Samurai Points (SPS)
-     *      - Revert when tries to claim at the same time
-     *      - Iterates through all wallet locks and mint the amount in samurai points
-     *      - Revert if there's no points to claim
-     */
-    // function claimPoints() external nonReentrant {
-    //     require(block.timestamp > lastClaims[msg.sender], ILPStaking.ILPStaking__Error("Unallowed to claim right now"));
-    //     uint256 points;
-    //     ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
-
-    //     for (uint256 i = 0; i < walletStakes.length; i++) {
-    //         uint256 stakePoints = pointsByStake(msg.sender, walletStakes[i].stakeIndex);
-    //         points += stakePoints;
-    //         walletStakes[i].claimedPoints = stakePoints;
-    //     }
-
-    //     require(points > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
-    //     lastClaims[msg.sender] = block.timestamp;
-    //     iPoints.mint(msg.sender, points);
-    //     emit ILPStaking.PointsClaimed(msg.sender, points);
-    // }
 
     function claimRewards() external nonReentrant {
         uint256 totalRewards;
@@ -254,13 +144,30 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         emit ILPStaking.RewardsClaimed(msg.sender, totalRewards);
     }
 
-    function collectFees() external onlyOwner nonReentrant {
-        uint256 fees = collectedFees;
-        collectedFees = 0;
-        emit ILPStaking.FeesWithdrawn(fees);
+    /**
+     * @notice Claim samurai points from a specific stake
+     * @dev Mint accrued Samurai Points (SPS)
+     *      - Revert when tries to claim at the same time
+     *      - Revert if there's no stakes
+     *      - Iterates through all wallet stakes and mint the amount in samurai points
+     *      - Revert if there's no points to claim
+     */
+    function claimPoints() external nonReentrant {
+        require(block.timestamp > lastClaims[msg.sender], ILPStaking.ILPStaking__Error("Unallowed to claim right now"));
+        ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
+        require(walletStakes.length > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
 
-        gauge.withdraw(fees);
-        ERC20(lpToken).safeTransfer(owner(), fees);
+        uint256 points;
+        for (uint256 i = 0; i < walletStakes.length; i++) {
+            points += previewClaimablePoints(msg.sender, i);
+            walletStakes[i].claimedPoints = points;
+        }
+
+        require(points > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
+        lastClaims[msg.sender] = block.timestamp;
+        emit ILPStaking.PointsClaimed(msg.sender, points);
+
+        iPoints.mint(msg.sender, points);
     }
 
     /// @notice Pause the contract, preventing further locking actions
@@ -271,15 +178,6 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     /// @notice Unpause the contract, allowing locking actions again
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @notice Owner can update minToStake config
-     * @param _minToStake value to be updated
-     * @dev This function can only be called by the contract owner.
-     */
-    function updateMinToStake(uint256 _minToStake) external onlyOwner nonReentrant {
-        minToStake = _minToStake;
     }
 
     /**
@@ -324,54 +222,11 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         emit ILPStaking.MultipliersUpdated(multiplier3x, multiplier6x, multiplier9x, multiplier12x);
     }
 
-    /**
-     * @notice Retrieve all lock information entries for a specific user (address)
-     * @dev Reverts with ILock.SamLock__NotFound if there are no lock entries for the user
-     * @param wallet Address of the user
-     * @return lockInfos Array containing the user's lock information entries
-     */
-    function getStakeInfos(address wallet) public view returns (ILPStaking.StakeInfo[] memory) {
-        return stakes[wallet];
-    }
-
-    // /**
-    //  * @notice Calculate the total points earned for a specific lock entry
-    //  * @param wallet Address of the user
-    //  * @param stakeIndex Index of the lock information entry for the user
-    //  * @return points Total points earned for the specific lock entry (uint256)
-    //  * @dev Reverts with ILock.SamLock__InvalidstakeIndex if the lock index is out of bounds
-    //  */
-    // function pointsByStake(address wallet, uint256 stakeIndex) public view returns (uint256 points) {
-    //     require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
-
-    //     ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
-    //     UD60x18 multiplier = ud(multipliers[stakeInfo.stakePeriod]);
-    //     UD60x18 maxPointsToEarn = ud(stakeInfo.stakedAmount).mul(multiplier).sub(ud(stakeInfo.claimedPoints));
-
-    //     if (block.timestamp >= stakeInfo.withdrawTime) {
-    //         points = maxPointsToEarn.intoUint256();
-    //         return points;
-    //     }
-
-    //     uint256 elapsedTime = block.timestamp - stakeInfo.stakedAt;
-
-    //     if (elapsedTime > 0) {
-    //         UD60x18 oneDay = ud(86_400e18);
-    //         UD60x18 periodInDays = convert(stakeInfo.stakePeriod).div(oneDay);
-    //         UD60x18 pointsPerDay = maxPointsToEarn.div(periodInDays);
-    //         UD60x18 elapsedDays = convert(elapsedTime).div(oneDay);
-
-    //         points = pointsPerDay.mul(elapsedDays).intoUint256();
-    //     }
-
-    //     return points;
-    // }
-
     function previewRewards(address wallet) public view returns (uint256 rewards) {
         ILPStaking.StakeInfo[] memory walletStakes = stakes[wallet];
 
         for (uint256 i = 0; i < walletStakes.length; i++) {
-            uint256 stakeRewards = rewardsByStake(msg.sender, i);
+            uint256 stakeRewards = rewardsByStake(wallet, i);
             rewards += stakeRewards;
         }
 
@@ -385,7 +240,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      * @return rewards Total rewards earned for the specific lock entry (uint256)
      * @dev Reverts with ILock.SamLock__InvalidstakeIndex if the lock index is out of bounds
      */
-    function rewardsByStake(address wallet, uint256 stakeIndex) public view returns (uint256 rewards) {
+    function rewardsByStake(address wallet, uint256 stakeIndex) public view returns (uint256) {
         require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
@@ -399,13 +254,31 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         // Calculate rewards for this stake
         UD60x18 stakeRewards = totalRewards.mul(stakeProportion);
 
-        // Subtract already claimed rewards
-        rewards = stakeRewards.sub(ud(stakeInfo.claimedRewards)).intoUint256();
+        if (stakeRewards.intoUint256() == 0) return 0;
 
+        // Subtract already claimed rewards
+        uint256 rewards = stakeRewards.sub(ud(stakeInfo.claimedRewards)).intoUint256();
         return rewards;
     }
 
-    function getFees(uint256 _amount) public view returns (uint256) {
-        return ud(_amount).mul(withdrawEarlierFee).intoUint256();
+    /**
+     * @notice Previews the claimable points for a given wallet and stakeIndex.
+     * @dev Calculates the total amount of Samurai Points tokens for specific stake.
+     * @param wallet The wallet address to calculate claimable tokens for.
+     * @param stakeIndex The index of a specific stake.
+     * @return claimablePoints The total amount of claimable points for the wallet.
+     */
+    function previewClaimablePoints(address wallet, uint256 stakeIndex) public view returns (uint256) {
+        ILPStaking.StakeInfo[] memory walletStakes = stakes[wallet];
+
+        if (walletStakes.length == 0) return 0;
+        if (walletStakes.length <= stakeIndex) return 0;
+
+        ILPStaking.StakeInfo memory stakeInfo = walletStakes[stakeIndex];
+
+        if (stakeInfo.claimedPoints > 0) return 0;
+
+        return
+            ud(stakeInfo.stakedAmount).mul(ud(pointsPerToken)).mul(ud(multipliers[stakeInfo.stakePeriod])).intoUint256();
     }
 }
