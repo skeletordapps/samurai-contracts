@@ -3,7 +3,7 @@ src = "src"
 out = "out"
 libs = ["lib"]
 viaIR = true
-solc_version = "0.8.26"
+solc_version = "0.8.28"
 
 remappings = [
   '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts/',
@@ -12,10 +12,12 @@ remappings = [
 ]
 
 [rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base = "${BASE_RPC_URL}"
 
 [etherscan]
-base_mainnet = { key = "${BASESCAN_API_KEY}", chain = 8543, url = "https://api.basescan.org/api" }
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }
+base = { key = "${BASESCAN_API_KEY}", chain = 8453, url = "https://api.basescan.org/api" }
 
 [invariant]
 fail_on_revert = false

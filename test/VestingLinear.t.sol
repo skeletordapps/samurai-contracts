@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -61,7 +61,7 @@ contract VestingLinearTest is Test {
         assertEq(cliff, 2);
         assertEq(vesting.purchases(bob), 500_000 ether);
         assertEq(vesting.purchases(mary), 500_000 ether);
-        assertEq(vesting.pointsPerToken(), 100 ether);
+        assertEq(vesting.pointsPerToken(), 0.315 ether);
     }
 
     function testLinear_CanSendIDOTokenToContract() external {
@@ -309,6 +309,50 @@ contract VestingLinearTest is Test {
         vm.expectEmit(true, true, true, true);
         emit IVesting.RemainingTokensWithdrawal(expectedAmountToWithdraw);
         vesting.emergencyWithdraw();
+        vm.stopPrank();
+    }
+
+    // WITHDRAW REFUNDS
+
+    function testLinear_CanWithdrawRefunds() external idoTokenFilled(false) {
+        uint256 expectedAmountToWithdraw = 500_000 ether;
+
+        assertEq(vesting.purchases(bob), expectedAmountToWithdraw);
+        vm.startPrank(bob);
+        vesting.askForRefund();
+        vm.stopPrank();
+
+        assertEq(vesting.totalToRefund(), expectedAmountToWithdraw);
+
+        uint256 ownerAmount = ERC20(vesting.token()).balanceOf(owner);
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IVesting.RefundsWidrawal(owner, expectedAmountToWithdraw);
+        vesting.withdrawRefunds();
+        vm.stopPrank();
+
+        uint256 ownerAmountAfter = ERC20(vesting.token()).balanceOf(owner);
+        assertEq(vesting.totalToRefund(), 0);
+        assertEq(ownerAmount + expectedAmountToWithdraw, ownerAmountAfter);
+        assertEq(vesting.previewClaimableTokens(bob), 0);
+        assertEq(vesting.previewClaimablePoints(bob), 0);
+    }
+
+    function testLinear_RevertRefundPeriod() external {
+        vm.startPrank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(IVesting.IVesting__Invalid.selector, "New period must be greater than current")
+        );
+        vesting.setRefundPeriod(0);
+        vm.stopPrank();
+    }
+
+    function testLinear_CanSetRefundPeriod() external {
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IVesting.RefundPeriodSet(72 hours);
+        vesting.setRefundPeriod(72 hours);
         vm.stopPrank();
     }
 }

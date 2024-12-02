@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 interface IVesting {
     /// Errors
@@ -18,6 +18,8 @@ interface IVesting {
     event RemainingTokensWithdrawal(uint256 amount);
     event PurchasesSet(address[] wallets, uint256[] tokensPurchased);
     event PointsClaimed(address indexed wallet, uint256 amount);
+    event RefundsWidrawal(address indexed wallet, uint256 amount);
+    event RefundPeriodSet(uint256 refundPeriod);
 
     /// Enums
 

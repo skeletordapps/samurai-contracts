@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -21,10 +21,13 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     address public immutable points;
     IVesting.VestingType public immutable vestingType;
 
+    uint256 public refundPeriod = 48 hours;
     uint256 public totalPurchased;
     uint256 public totalClaimed;
     uint256 public totalPoints;
     uint256 public totalPointsClaimed;
+    uint256 public totalToRefund;
+
     IVesting.Periods public periods;
     address[] public walletsToRefund;
 
@@ -177,18 +180,50 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows a wallet to ask for a refund.
-     * This feature is designed to help with problems and edge cases.
+     * @notice Allows the contract owner to withdraw project tokens to be refundable.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     * It reverts if there are no tokens to withdraw.
-     * emit RemainingTokensWithdrawal(balance) Emitted when remaining IDO tokens are withdrawn.
+     * It reverts if there are no refundable tokens to withdraw.
+     * emit RefundsWidrawal(balance) Emitted when refundable tokens are withdrawn.
+     */
+    function withdrawRefunds() external onlyOwner nonReentrant {
+        uint256 totalToRefundCopy = totalToRefund;
+        require(totalToRefundCopy > 0, IVesting.IVesting__Unauthorized("Nothing to withdraw"));
+
+        totalToRefund = 0;
+        emit IVesting.RefundsWidrawal(msg.sender, totalToRefundCopy);
+
+        ERC20(token).safeTransfer(owner(), totalToRefundCopy);
+    }
+
+    /**
+     * @notice Allows the contract owner to update the refund period.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     * It reverts if _refundPeriod is equal or lower than refundPeriod.
+     * emit RefundsWidrawal(balance) Emitted when refundable tokens are withdrawn.
+     */
+    function setRefundPeriod(uint256 _refundPeriod) external onlyOwner nonReentrant {
+        require(_refundPeriod > refundPeriod, IVesting.IVesting__Invalid("New period must be greater than current"));
+
+        refundPeriod = _refundPeriod;
+        emit IVesting.RefundPeriodSet(_refundPeriod);
+    }
+
+    /**
+     * @notice Allows a wallet to ask for a refund.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     * It reverts if refunding period has passed.
+     * It reverts if wallet claimed tge.
+     * It reverts if wallet claimed points.
+     * emit NeedRefund(balance).
      */
     function askForRefund() external whenNotPaused nonReentrant {
+        require(block.timestamp <= periods.vestingAt + refundPeriod, IVesting.IVesting__Unauthorized("Not refundable"));
         require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
         require(pointsClaimed[msg.sender] == 0, IVesting.IVesting__Unauthorized("Not refundable"));
 
         askedRefund[msg.sender] = true;
         walletsToRefund.push(msg.sender);
+        totalToRefund += purchases[msg.sender];
         emit IVesting.NeedRefund(walletsToRefund);
     }
 
@@ -256,7 +291,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         if (askedRefund[wallet]) return 0; // wallets that asked for refund cannot get any points
         if (pointsClaimed[wallet] > 0) return 0; // wallet already claimed
 
-        return purchased * pointsPerToken;
+        return ud(purchased).mul(ud(pointsPerToken)).intoUint256();
     }
 
     /**
@@ -416,6 +451,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
 
         if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
         if (purchases[wallet] == 0) return zero; // Wallet has no purchases
+        if (askedRefund[wallet]) return zero;
 
         UD60x18 max = ud(purchases[wallet]);
         UD60x18 claimed = ud(tokensClaimed[wallet]);

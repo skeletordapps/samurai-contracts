@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
@@ -8,6 +8,7 @@ import {SamuraiPoints} from "../src/SamuraiPoints.sol";
 import {IPoints} from "../src/interfaces/IPoints.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IVesting} from "../src/interfaces/IVesting.sol";
 
 contract SamuraiPointsTest is Test {
     uint256 fork;
@@ -42,7 +43,7 @@ contract SamuraiPointsTest is Test {
         vm.label(mary, "mary");
     }
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertTrue(samuraiPoints.hasRole(samuraiPoints.BOOSTER_ROLE(), owner));
         assertTrue(samuraiPoints.hasRole(samuraiPoints.MINTER_ROLE(), owner));
         assertTrue(samuraiPoints.hasRole(samuraiPoints.BURNER_ROLE(), owner));

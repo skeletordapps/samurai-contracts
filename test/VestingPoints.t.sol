@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLINCENSED
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -109,7 +109,10 @@ contract VestingPointsTest is Test {
 
     function testPoints_canClaimPoints() external idoTokenFilled tgeClaimed(bob) {
         vm.warp(block.timestamp + 1 days); // Time passed since tge claim
-        uint256 expectedPoints = 500_000 ether * 100 ether; // purchase * pointsPerToken
+
+        uint256 expectedPoints = ud(500000000000000000000000).mul(ud(0.315e18)).intoUint256(); // purchase * pointsPerToken
+        assertEq(expectedPoints, 157_500 ether);
+
         uint256 previewedPoints = vesting.previewClaimablePoints(bob);
 
         assertEq(previewedPoints, expectedPoints);
