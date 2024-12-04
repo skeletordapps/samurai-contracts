@@ -56,7 +56,7 @@ contract DeployVesting is Script {
         return vesting;
     }
 
-    function runForCliffVesting() external returns (Vesting vesting) {
+    function runForNoCliffNoVesting() external returns (Vesting vesting) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
         address idoToken = address(newToken);
