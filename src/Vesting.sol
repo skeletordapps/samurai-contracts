@@ -338,9 +338,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *                  - cliff: Cliff period after TGE before vesting starts.
      */
     function _setPeriods(IVesting.Periods memory _periods) private nonReentrant {
-        // require(_periods.vestingDuration > 0, IVesting.IVesting__Invalid("Invalid vestingDuration"));
         require(_periods.vestingAt > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
-        // require(_periods.cliff > 0, IVesting.IVesting__Invalid("Invalid cliff"));
 
         periods = _periods;
         emit IVesting.PeriodsSet(_periods);

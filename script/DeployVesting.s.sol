@@ -60,9 +60,10 @@ contract DeployVesting is Script {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
         address idoToken = address(newToken);
-        uint256 tgeReleasePercent = 0.15 ether;
+        uint256 tgeReleasePercent = 0 ether;
         uint256 pointsPerToken = 0.315e18;
-        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 0, vestingAt: block.timestamp, cliff: 0});
+        IVesting.Periods memory periods =
+            IVesting.Periods({vestingDuration: 0, vestingAt: block.timestamp + 1 hours, cliff: 0});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
 
         vm.startBroadcast(privateKey);
