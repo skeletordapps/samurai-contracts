@@ -3,10 +3,10 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Vesting} from "../src/Vesting.sol";
-import {DeployVesting} from "../script/DeployVesting.s.sol";
-import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
-import {IVesting} from "../src/interfaces/IVesting.sol";
+import {Vesting} from "../../../src/Vesting.sol";
+import {DeployVesting} from "../../../script/DeployVesting.s.sol";
+import {ERC20Mock} from "../../../src/mocks/ERC20Mock.sol";
+import {IVesting} from "../../../src/interfaces/IVesting.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 

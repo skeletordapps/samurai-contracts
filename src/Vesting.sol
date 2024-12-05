@@ -497,11 +497,11 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *
      * @param start The start timestamp.
      * @param end The end timestamp.
-     * @param periodType The period type (days or months).
+     * @param periodType The period type (days, weeks or months).
      * @return The calculated time difference in seconds (for days) or months.
      */
     function _getDiffByPeriodType(uint256 start, uint256 end, IVesting.PeriodType periodType)
-        public
+        private
         pure
         returns (uint256)
     {

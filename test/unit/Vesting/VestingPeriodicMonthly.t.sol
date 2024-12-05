@@ -3,15 +3,15 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Vesting} from "../src/Vesting.sol";
-import {DeployVesting} from "../script/DeployVesting.s.sol";
-import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
-import {IVesting} from "../src/interfaces/IVesting.sol";
+import {Vesting} from "../../../src/Vesting.sol";
+import {DeployVesting} from "../../../script/DeployVesting.s.sol";
+import {ERC20Mock} from "../../../src/mocks/ERC20Mock.sol";
+import {IVesting} from "../../../src/interfaces/IVesting.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {console} from "forge-std/console.sol";
 
-contract VestingPeriodicTest is Test {
+contract VestingPeriodicMonthlyTest is Test {
     uint256 fork;
     string public RPC_URL;
 
@@ -259,14 +259,14 @@ contract VestingPeriodicTest is Test {
         assertEq(balance, purchased);
     }
 
-    function testLib() public view {
-        console.log(
-            vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Seconds)
-        );
-        console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Days));
-        console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Weeks));
-        console.log(
-            vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Months)
-        );
-    }
+    // function testLib() public view {
+    //     console.log(
+    //         vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Seconds)
+    //     );
+    //     console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Days));
+    //     console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Weeks));
+    //     console.log(
+    //         vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Months)
+    //     );
+    // }
 }
