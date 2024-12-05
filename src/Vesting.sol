@@ -20,6 +20,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     address public immutable token;
     address public immutable points;
     IVesting.VestingType public immutable vestingType;
+    IVesting.PeriodType public immutable vestingPeriodType;
 
     uint256 public refundPeriod = 48 hours;
     uint256 public totalPurchased;
@@ -46,6 +47,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param _tgeReleasePercent TGE release percent.
      * @param _pointsPerToken amount of points per token purchased
      * @param _vestingType Type of vesting schedule.
+     * @param _vestingPeriodType Type of vesting unlocks
      * @param _periods Struct containing initial periods configuration: registration start, participation start/end, TGE vesting at.
      * @param _wallets List of wallets addresses.
      * @param _tokensPurchased List of tokens purchased by wallets.
@@ -56,6 +58,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         uint256 _tgeReleasePercent,
         uint256 _pointsPerToken,
         IVesting.VestingType _vestingType,
+        IVesting.PeriodType _vestingPeriodType,
         IVesting.Periods memory _periods,
         address[] memory _wallets,
         uint256[] memory _tokensPurchased
@@ -63,12 +66,14 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         require(_token != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(_points != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(uint256(_vestingType) < 3, IVesting.IVesting__Invalid("Invalid vesting type"));
+        require(uint256(_vestingPeriodType) < 5, IVesting.IVesting__Invalid("Invalid vesting period type"));
 
         token = _token;
         points = _points;
         tgeReleasePercent = _tgeReleasePercent; // this can be zero
         pointsPerToken = _pointsPerToken;
         vestingType = _vestingType;
+        vestingPeriodType = _vestingPeriodType;
         _setPeriods(_periods);
         _setPurchases(_wallets, _tokensPurchased);
     }
@@ -416,20 +421,22 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
             if (vestingType == IVesting.VestingType.LinearVesting) {
                 /// LINEAR VESTING =================================================
 
-                UD60x18 duration = convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Days));
+                UD60x18 duration =
+                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Seconds));
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
                 vestedAmount = tokensPerSec.mul(elapsedTime).add(tgeAmount);
             } else if (vestingType == IVesting.VestingType.PeriodicVesting) {
                 /// PERIODC VESTING ================================================
 
-                UD60x18 totalMonths =
-                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Month));
-                UD60x18 elapsedMonths =
-                    convert(_getDiffByPeriodType(_cliffEndsAt, block.timestamp, IVesting.PeriodType.Month));
+                IVesting.PeriodType vestingPeriodTypeCopy = vestingPeriodType;
+                UD60x18 totalForPeriod =
+                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, vestingPeriodTypeCopy));
+                UD60x18 elapsedPeriod =
+                    convert(_getDiffByPeriodType(_cliffEndsAt, block.timestamp, vestingPeriodTypeCopy));
 
-                UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
-                UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
+                UD60x18 tokensForPeriod = maxOfTokensForVesting.div(totalForPeriod);
+                UD60x18 vested = tokensForPeriod.mul(elapsedPeriod);
                 vestedAmount = vested.add(tgeAmount);
             }
 
@@ -494,18 +501,26 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @return The calculated time difference in seconds (for days) or months.
      */
     function _getDiffByPeriodType(uint256 start, uint256 end, IVesting.PeriodType periodType)
-        private
+        public
         pure
         returns (uint256)
     {
-        if (periodType == IVesting.PeriodType.Days) {
-            // return number of days times seconds per day
+        if (periodType == IVesting.PeriodType.Seconds) {
+            // return number of days in seconds
             // eg: 2 * 86400 = number of days in secondss
             return BokkyPooBahsDateTimeLibrary.diffDays(start, end) * 86_400;
+        } else if (periodType == IVesting.PeriodType.Days) {
+            // return number of days
+            return BokkyPooBahsDateTimeLibrary.diffDays(start, end);
+        } else if (periodType == IVesting.PeriodType.Weeks) {
+            // return number of weeks
+            uint256 estimatedDays = BokkyPooBahsDateTimeLibrary.diffDays(start, end);
+            uint256 estimatedWeeks = estimatedDays / 7; // Round down to the nearest week
+            return estimatedWeeks;
+        } else {
+            // return number of months
+            // eg 2 or 8
+            return BokkyPooBahsDateTimeLibrary.diffMonths(start, end);
         }
-
-        // return number of months
-        // eg 2 or 8
-        return BokkyPooBahsDateTimeLibrary.diffMonths(start, end);
     }
 }

@@ -9,6 +9,7 @@ import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {IVesting} from "../src/interfaces/IVesting.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
+import {console} from "forge-std/console.sol";
 
 contract VestingPeriodicTest is Test {
     uint256 fork;
@@ -256,5 +257,16 @@ contract VestingPeriodicTest is Test {
 
         balance = ERC20(vesting.token()).balanceOf(bob);
         assertEq(balance, purchased);
+    }
+
+    function testLib() public view {
+        console.log(
+            vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Seconds)
+        );
+        console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Days));
+        console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Weeks));
+        console.log(
+            vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Months)
+        );
     }
 }

@@ -20,12 +20,21 @@ contract DeployVesting is Script {
         uint256 tgeReleasePercent = 0.3e18;
         uint256 pointsPerToken = 0.315e18;
         IVesting.VestingType vestingType = IVesting.VestingType.PeriodicVesting;
+        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.Months;
         IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 5, vestingAt: 1733238000, cliff: 1});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
         vm.startBroadcast(privateKey);
         vesting = new Vesting(
-            idoToken, points, tgeReleasePercent, pointsPerToken, vestingType, periods, wallets, tokensPurchased
+            idoToken,
+            points,
+            tgeReleasePercent,
+            pointsPerToken,
+            vestingType,
+            vestingPeriodType,
+            periods,
+            wallets,
+            tokensPurchased
         );
         vm.stopBroadcast();
 
@@ -33,6 +42,10 @@ contract DeployVesting is Script {
     }
 
     function runForTests(IVesting.VestingType _vestingType) external returns (Vesting vesting) {
+        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.None; // Assume is "Linear Vesting" or "Cliff Vesting" first
+
+        if (_vestingType == IVesting.VestingType.PeriodicVesting) vestingPeriodType = IVesting.PeriodType.Months;
+
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
         address idoToken = address(newToken);
@@ -46,7 +59,15 @@ contract DeployVesting is Script {
         address points = address(sp);
 
         vesting = new Vesting(
-            idoToken, points, tgeReleasePercent, pointsPerToken, _vestingType, periods, wallets, tokensPurchased
+            idoToken,
+            points,
+            tgeReleasePercent,
+            pointsPerToken,
+            _vestingType,
+            vestingPeriodType,
+            periods,
+            wallets,
+            tokensPurchased
         );
 
         sp.grantRole(IPoints.Roles.MINTER, address(vesting));
@@ -76,37 +97,10 @@ contract DeployVesting is Script {
             tgeReleasePercent,
             pointsPerToken,
             IVesting.VestingType.CliffVesting,
+            IVesting.PeriodType.None,
             periods,
             wallets,
             tokensPurchased
-        );
-
-        sp.grantRole(IPoints.Roles.MINTER, address(vesting));
-        loadWallets();
-        vm.stopBroadcast();
-
-        return vesting;
-    }
-
-    function runForFuzzTests(
-        IVesting.VestingType _vestingType,
-        uint256 _tgeReleasePercent,
-        IVesting.Periods memory _periods
-    ) external returns (Vesting vesting) {
-        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
-        ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
-        address idoToken = address(newToken);
-        uint256 tgeReleasePercent = _tgeReleasePercent;
-        uint256 pointsPerToken = 100;
-        IVesting.Periods memory periods = _periods;
-        (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
-
-        vm.startBroadcast(privateKey);
-        SamuraiPoints sp = new SamuraiPoints();
-        address points = address(sp);
-
-        vesting = new Vesting(
-            idoToken, points, tgeReleasePercent, pointsPerToken, _vestingType, periods, wallets, tokensPurchased
         );
 
         sp.grantRole(IPoints.Roles.MINTER, address(vesting));
