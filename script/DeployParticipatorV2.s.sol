@@ -44,6 +44,8 @@ contract DeployParticipatorV2 is Script {
 
     // Deploys the Samurai tiers for tests
     function runForTests(bool _usingETH, bool _usingLinkedWallet) external returns (ParticipatorV2 participator) {
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+        address samuraiTiers = 0x2Bb8Fc0196becd84bac853E32c9c252343699186;
         bool usingETH = _usingETH;
         bool usingLinkedWallet = _usingLinkedWallet;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
@@ -65,15 +67,8 @@ contract DeployParticipatorV2 is Script {
         ranges[4] = range5;
         ranges[5] = range6;
 
-        address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
-        address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
-        address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
-
-        vm.startBroadcast();
-        SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lpGauge);
-        addInitialTiers(samuraiTiers);
-
-        participator = new ParticipatorV2(address(samuraiTiers), totalMax, ranges, usingETH, usingLinkedWallet);
+        vm.startBroadcast(privateKey);
+        participator = new ParticipatorV2(samuraiTiers, totalMax, ranges, usingETH, usingLinkedWallet);
         if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 

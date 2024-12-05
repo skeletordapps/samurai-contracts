@@ -46,13 +46,13 @@ contract ParticipatorV2ETHTest is Test {
         vm.label(mary, "mary");
 
         randomUSDCHolder = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
-        walletInTiers = 0xC2a96B13a975c656f60f401a5F72851af4717D4A;
+        walletInTiers = 0xe6383dfABb171242D1f485FAA20DdF875eF7a5ED;
         vm.label(randomUSDCHolder, "randomUSDCHolder");
 
         maxAllocations = participator.maxAllocations();
     }
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(participator.owner(), owner);
         assertEq(participator.acceptedTokensLength(), 0);
         assertFalse(participator.samuraiTiers() == address(0));
