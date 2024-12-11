@@ -282,6 +282,18 @@ contract ParticipatorV2 is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @notice Allows the contract owner to update the tiers address.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     *       It reverts if the provided address is invalid.
+     * @param _tiers Samurai Tiers address
+     */
+    function setTiers(address _tiers) public onlyOwner nonReentrant {
+        require(_tiers != address(0), IParticipator.IParticipator__Invalid("Invalid address"));
+
+        samuraiTiers = _tiers;
+    }
+
+    /**
      * @notice Retrieves the participation range applicable to a specific wallet based on their tier.
      * @dev This function is view-only and retrieves the range information from the `SamuraiTiers` contract
      *       using the provided wallet address. If tier.name is empty string, returns the public wallet range.

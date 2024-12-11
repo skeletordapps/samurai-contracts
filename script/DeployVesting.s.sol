@@ -77,13 +77,17 @@ contract DeployVesting is Script {
         return vesting;
     }
 
-    function runForPeriodicTests(IVesting.PeriodType _vestingPeriodType) external returns (Vesting vesting) {
+    function runForPeriodicTests(IVesting.PeriodType _vestingPeriodType, uint256 _vestingDuration)
+        external
+        returns (Vesting vesting)
+    {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
         address idoToken = address(newToken);
         uint256 tgeReleasePercent = 0.15 ether;
         uint256 pointsPerToken = 0.315e18;
-        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 3, vestingAt: block.timestamp, cliff: 2});
+        IVesting.Periods memory periods =
+            IVesting.Periods({vestingDuration: _vestingDuration, vestingAt: block.timestamp, cliff: 2});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
 
         vm.startBroadcast(privateKey);

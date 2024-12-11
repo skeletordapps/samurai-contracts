@@ -19,7 +19,7 @@ contract DeployParticipatorV2 is Script {
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 50 * DECIMALS, 5_000 * DECIMALS);
         IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 50 * DECIMALS, 50 * DECIMALS);
         IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 100 * DECIMALS);
         IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 150 * DECIMALS);
@@ -36,7 +36,7 @@ contract DeployParticipatorV2 is Script {
         uint256 privateKey = block.chainid == 8453 ? vm.envUint("PRIVATE_KEY") : vm.envUint("DEV_HOT_PRIVATE_KEY");
         vm.startBroadcast(privateKey);
         participator = new ParticipatorV2(samuraiTiers, totalMax, ranges, usingETH, usingLinkedWallet);
-        // if (!usingETH) setTokens(participator);
+        if (!usingETH) setTokens(participator);
         vm.stopBroadcast();
 
         return participator;

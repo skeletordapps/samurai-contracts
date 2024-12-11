@@ -35,7 +35,7 @@ contract VestingPeriodicMonthlyTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployVesting();
-        vesting = deployer.runForPeriodicTests(IVesting.PeriodType.Months);
+        vesting = deployer.runForPeriodicTests(IVesting.PeriodType.Months, 3);
         owner = vesting.owner();
 
         bob = vm.addr(1);
@@ -258,15 +258,4 @@ contract VestingPeriodicMonthlyTest is Test {
         balance = ERC20(vesting.token()).balanceOf(bob);
         assertEq(balance, purchased);
     }
-
-    // function testLib() public view {
-    //     console.log(
-    //         vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Seconds)
-    //     );
-    //     console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Days));
-    //     console.log(vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Weeks));
-    //     console.log(
-    //         vesting._getDiffByPeriodType(block.timestamp, block.timestamp + 40 days, IVesting.PeriodType.Months)
-    //     );
-    // }
 }

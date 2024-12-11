@@ -11,7 +11,7 @@ import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {console} from "forge-std/console.sol";
 
-contract VestingPeriodicDailyTest is Test {
+contract VestingPeriodicWeeklyTest is Test {
     uint256 fork;
     string public RPC_URL;
 
@@ -35,7 +35,7 @@ contract VestingPeriodicDailyTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployVesting();
-        vesting = deployer.runForPeriodicTests(IVesting.PeriodType.Days, 1);
+        vesting = deployer.runForPeriodicTests(IVesting.PeriodType.Weeks, 1);
         owner = vesting.owner();
 
         bob = vm.addr(1);
@@ -52,7 +52,7 @@ contract VestingPeriodicDailyTest is Test {
         (vestingDuration, vestingAt, cliff) = vesting.periods();
     }
 
-    function testPeriodicDaily_Constructor() public view {
+    function testPeriodicWeekly_Constructor() public view {
         assertEq(vesting.owner(), owner);
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);
@@ -77,7 +77,7 @@ contract VestingPeriodicDailyTest is Test {
         _;
     }
 
-    function testPeriodicDaily_CanClaimTGEPlusOneDayAmountUnlocked() external idoTokenFilled {
+    function testPeriodicWeekly_CanClaimTGEPlusOneWeekAmountUnlocked() external idoTokenFilled {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 purchased = vesting.purchases(bob);
@@ -87,7 +87,7 @@ contract VestingPeriodicDailyTest is Test {
         uint256 claimable = vesting.previewClaimableTokens(bob);
         assertEq(claimable, expectedTGEAmount);
 
-        vm.warp(BokkyPooBahsDateTimeLibrary.addDays(cliffEndsAt, 1));
+        vm.warp(BokkyPooBahsDateTimeLibrary.addDays(cliffEndsAt, 1 weeks));
         claimable = vesting.previewClaimableTokens(bob);
         assertTrue(claimable > expectedTGEAmount);
 
@@ -97,9 +97,9 @@ contract VestingPeriodicDailyTest is Test {
         UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
         UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
         UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        uint256 expectedAmountAfterOneDay = walletVested.intoUint256();
+        uint256 expectedAmountAfterOneWeek = walletVested.intoUint256();
 
-        assertEq(claimable, expectedAmountAfterOneDay);
+        assertEq(claimable, expectedAmountAfterOneWeek);
 
         uint256 walletBalance = ERC20(vesting.token()).balanceOf(bob);
 
@@ -111,11 +111,11 @@ contract VestingPeriodicDailyTest is Test {
         assertEq(walletBalanceAfter, walletBalance + claimable);
     }
 
-    function jumpDay() public view returns (uint256) {
-        return block.timestamp + 1 days;
+    function jumpWeek() public view returns (uint256) {
+        return block.timestamp + 1 weeks;
     }
 
-    function testPeriodicDaily_CanClaimAllPurchasedTokensFollowingPeriodicVesting() external idoTokenFilled {
+    function testPeriodicWeekly_CanClaimAllPurchasedTokensFollowingPeriodicVesting() external idoTokenFilled {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
         uint256 vestingEndsAt = vesting.vestingEndsAt();
 
@@ -133,12 +133,13 @@ contract VestingPeriodicDailyTest is Test {
         claimable = vesting.previewClaimableTokens(bob);
         assertEq(claimable, 0);
 
-        uint256 diffDays = BokkyPooBahsDateTimeLibrary.diffDays(cliffEndsAt, vestingEndsAt);
+        uint256 diffWeeks = BokkyPooBahsDateTimeLibrary.diffDays(cliffEndsAt, vestingEndsAt) / 7;
 
         vm.warp(cliffEndsAt);
+        vesting.previewClaimableTokens(bob);
 
-        for (uint256 i = 0; i < diffDays + 1; i++) {
-            vm.warp(jumpDay());
+        for (uint256 i = 0; i < diffWeeks; i++) {
+            vm.warp(jumpWeek());
             vm.startPrank(bob);
             vesting.claim();
             vm.stopPrank();
@@ -148,7 +149,7 @@ contract VestingPeriodicDailyTest is Test {
         assertEq(balance, purchased);
     }
 
-    function testPeriodicDaily_ShouldNotIncreaseClaimableWithoutADayCompletes() external idoTokenFilled {
+    function testPeriodicWeekly_ShouldNotIncreaseClaimableWithoutAWeekCompletes() external idoTokenFilled {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 expectedTGEAmount = 75_000 ether;
@@ -157,15 +158,15 @@ contract VestingPeriodicDailyTest is Test {
         uint256 claimable = vesting.previewClaimableTokens(bob);
         assertEq(claimable, expectedTGEAmount);
 
-        vm.warp(cliffEndsAt + 23 hours + 59 minutes);
+        vm.warp(cliffEndsAt + 6 days + 23 hours + 59 minutes);
         claimable = vesting.previewClaimableTokens(bob);
         assertEq(claimable, expectedTGEAmount);
 
-        vm.warp(cliffEndsAt + 24 hours);
+        vm.warp(cliffEndsAt + 1 weeks);
         claimable = vesting.previewClaimableTokens(bob);
         assertTrue(claimable > expectedTGEAmount);
 
-        vm.warp(block.timestamp + 23 hours + 59 minutes);
+        vm.warp(block.timestamp + 6 days + 23 hours + 59 minutes);
         uint256 claimableNext = vesting.previewClaimableTokens(bob);
         assertEq(claimableNext, claimable);
 
