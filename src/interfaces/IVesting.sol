@@ -30,8 +30,11 @@ interface IVesting {
     }
 
     enum PeriodType {
+        None,
+        Seconds,
         Days,
-        Month
+        Weeks,
+        Months
     }
 
     /// Structs

@@ -116,7 +116,6 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         uint256 totalLocked;
 
         for (uint256 i = 0; i < lockings.length; i++) {
-            console.log(lockings[i].lockedAmount, lockings[i].withdrawnAmount);
             totalLocked += lockings[i].lockedAmount - lockings[i].withdrawnAmount;
         }
 

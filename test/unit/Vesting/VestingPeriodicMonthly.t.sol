@@ -3,14 +3,15 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Vesting} from "../src/Vesting.sol";
-import {DeployVesting} from "../script/DeployVesting.s.sol";
-import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
-import {IVesting} from "../src/interfaces/IVesting.sol";
+import {Vesting} from "../../../src/Vesting.sol";
+import {DeployVesting} from "../../../script/DeployVesting.s.sol";
+import {ERC20Mock} from "../../../src/mocks/ERC20Mock.sol";
+import {IVesting} from "../../../src/interfaces/IVesting.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
+import {console} from "forge-std/console.sol";
 
-contract VestingPeriodicTest is Test {
+contract VestingPeriodicMonthlyTest is Test {
     uint256 fork;
     string public RPC_URL;
 
@@ -34,7 +35,7 @@ contract VestingPeriodicTest is Test {
         vm.selectFork(fork);
 
         deployer = new DeployVesting();
-        vesting = deployer.runForTests(IVesting.VestingType.PeriodicVesting);
+        vesting = deployer.runForPeriodicTests(IVesting.PeriodType.Months, 3);
         owner = vesting.owner();
 
         bob = vm.addr(1);
@@ -51,7 +52,7 @@ contract VestingPeriodicTest is Test {
         (vestingDuration, vestingAt, cliff) = vesting.periods();
     }
 
-    function testPeriodic_Constructor() public view {
+    function testPeriodicMonthly_Constructor() public view {
         assertEq(vesting.owner(), owner);
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);
@@ -80,7 +81,7 @@ contract VestingPeriodicTest is Test {
 
     /// TGE CALCULATION
 
-    function testPeriodic_CanCheckTGEBalance() external idoTokenFilled(false) {
+    function testPeriodicMonthly_CanCheckTGEBalance() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 minutes);
         uint256 expectedTGEamount = 75_000 ether;
         uint256 userAmountInTGE = vesting.previewTGETokens(bob);
@@ -90,14 +91,14 @@ contract VestingPeriodicTest is Test {
 
     /// CALCULATE RELESEAD TOKENS
 
-    function testPeriodic_MustReturnZeroWhenWalletHasNoAllocation() external {
+    function testPeriodicMonthly_MustReturnZeroWhenWalletHasNoAllocation() external {
         vm.warp(vestingAt);
 
         uint256 amount = vesting.previewClaimableTokens(paul);
         assertEq(amount, 0);
     }
 
-    function testPeriodic_MustReturnTGEBalanceWhenCliffPeriodIsOngoing() external idoTokenFilled(false) {
+    function testPeriodicMonthly_MustReturnTGEBalanceWhenCliffPeriodIsOngoing() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         uint256 expectedTGEAmount = 75_000 ether;
@@ -108,7 +109,7 @@ contract VestingPeriodicTest is Test {
 
     /// CLAIM TGE
 
-    function testPeriodic_CanClaimTGE() external idoTokenFilled(false) {
+    function testPeriodicMonthly_CanClaimTGE() external idoTokenFilled(false) {
         vm.warp(vestingAt + 1 days);
 
         address idoToken = vesting.token();
@@ -133,7 +134,7 @@ contract VestingPeriodicTest is Test {
         _;
     }
 
-    function testPeriodic_CanClaimTGEPlusOneMonthAmountUnlocked() external idoTokenFilled(false) {
+    function testPeriodicMonthly_CanClaimTGEPlusOneMonthAmountUnlocked() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 purchased = vesting.purchases(bob);
@@ -167,7 +168,7 @@ contract VestingPeriodicTest is Test {
         assertEq(walletBalanceAfter, walletBalance + claimable);
     }
 
-    function testPeriodic_CanClaimTGEAnd2MonthsLater() external idoTokenFilled(false) {
+    function testPeriodicMonthly_CanClaimTGEAnd2MonthsLater() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 purchased = vesting.purchases(bob);
@@ -210,7 +211,7 @@ contract VestingPeriodicTest is Test {
         assertEq(walletBalance3, walletBalance2 + claimable);
     }
 
-    function testPeriodic_CanClaimAllPurchasedTokensFollowingPeriodicVesting() external idoTokenFilled(false) {
+    function testPeriodicMonthly_CanClaimAllPurchasedTokensFollowingPeriodicVesting() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
         uint256 purchased = vesting.purchases(bob);

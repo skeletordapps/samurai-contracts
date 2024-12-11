@@ -37,7 +37,7 @@ contract SamuraiTiersTest is Test {
 
     // CONSTRUCTOR
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(samuraiTiers.owner(), owner);
         assertEq(samuraiTiers.counter(), 0);
     }
