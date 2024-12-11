@@ -76,22 +76,42 @@ contract VestingCliff2Test is Test {
         uint256 claimableTokens = vesting.previewClaimableTokens(bob);
         assertEq(claimableTokens, 0);
 
-        vm.warp(block.timestamp + 1 hours);
+        vm.warp(vestingAt - 1 minutes);
+        claimableTokens = vesting.previewClaimableTokens(bob);
+        assertEq(claimableTokens, 0);
+
+        uint256 cliffEndsAt = vesting.cliffEndsAt();
+        assertEq(vestingAt, cliffEndsAt);
+
+        uint256 vestingEndsAt = vesting.vestingEndsAt();
+        assertEq(vestingAt, vestingEndsAt);
+
+        vm.warp(cliffEndsAt + 1 minutes);
         uint256 expectedAmount = 500_000 ether;
 
         claimableTokens = vesting.previewClaimableTokens(bob);
         assertEq(claimableTokens, expectedAmount);
 
-        uint256 startBobBalance = ERC20(vesting.token()).balanceOf(bob);
+        uint256 startBalance = ERC20(vesting.token()).balanceOf(bob);
 
         vm.startPrank(bob);
         vesting.claim();
         vm.stopPrank();
 
-        uint256 endBobBalance = ERC20(vesting.token()).balanceOf(bob);
-        assertEq(endBobBalance, startBobBalance + expectedAmount);
+        uint256 endBalance = ERC20(vesting.token()).balanceOf(bob);
+        assertEq(endBalance, startBalance + expectedAmount);
 
+        vm.warp(block.timestamp + 2 days);
         claimableTokens = vesting.previewClaimableTokens(bob);
         assertEq(claimableTokens, 0);
+
+        vm.startPrank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IVesting.IVesting__Unauthorized.selector, "There is no vested tokens available to claim"
+            )
+        );
+        vesting.claim();
+        vm.stopPrank();
     }
 }

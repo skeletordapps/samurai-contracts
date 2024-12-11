@@ -14,14 +14,13 @@ import {IPoints} from "../src/interfaces/IPoints.sol";
 contract DeployVesting is Script {
     function run() external returns (Vesting vesting) {
         uint256 privateKey = block.chainid == 8453 ? vm.envUint("PRIVATE_KEY") : vm.envUint("DEV_HOT_PRIVATE_KEY");
-        // address idoToken = address(0x888F2E45d3c27d9CaE72AcA93174C530dFB3D4d8); // SKR TOKEN
-        address idoToken = address(0xBF3A2340221B9Ead8Fe0B6a1b2990E6E00Dea092); // DYOR
+        address idoToken = address(0x3639E6f4C224eBd1BF6373C3D97917d33E0492BB); // PACA TOKEN
         address points = address(0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe); // SPS TOKEN
-        uint256 tgeReleasePercent = 0.3e18;
+        uint256 tgeReleasePercent = 1e18; // 100% on TGE
         uint256 pointsPerToken = 0.315e18;
-        IVesting.VestingType vestingType = IVesting.VestingType.PeriodicVesting;
-        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.Months;
-        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 5, vestingAt: 1733238000, cliff: 1});
+        IVesting.VestingType vestingType = IVesting.VestingType.CliffVesting;
+        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.None;
+        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 0, vestingAt: 1734015600, cliff: 0});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
         vm.startBroadcast(privateKey);
