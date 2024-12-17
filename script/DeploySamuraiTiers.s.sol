@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Script} from "forge-std/Script.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeploySamuraiTiers is Script {
     function run() external returns (SamuraiTiers samuraiTiers) {

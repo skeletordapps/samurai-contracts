@@ -50,7 +50,8 @@ contract DeployVesting is Script {
         address idoToken = address(newToken);
         uint256 tgeReleasePercent = 0.15 ether;
         uint256 pointsPerToken = 0.315e18;
-        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 3, vestingAt: block.timestamp, cliff: 2});
+        IVesting.Periods memory periods =
+            IVesting.Periods({vestingDuration: 3, vestingAt: block.timestamp + 1 days, cliff: 2});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
 
         vm.startBroadcast(privateKey);
@@ -86,7 +87,7 @@ contract DeployVesting is Script {
         uint256 tgeReleasePercent = 0.15 ether;
         uint256 pointsPerToken = 0.315e18;
         IVesting.Periods memory periods =
-            IVesting.Periods({vestingDuration: _vestingDuration, vestingAt: block.timestamp, cliff: 2});
+            IVesting.Periods({vestingDuration: _vestingDuration, vestingAt: block.timestamp + 1 days, cliff: 2});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
 
         vm.startBroadcast(privateKey);
@@ -119,7 +120,7 @@ contract DeployVesting is Script {
         uint256 tgeReleasePercent = 0 ether;
         uint256 pointsPerToken = 0.315e18;
         IVesting.Periods memory periods =
-            IVesting.Periods({vestingDuration: 0, vestingAt: block.timestamp + 1 hours, cliff: 0});
+            IVesting.Periods({vestingDuration: 0, vestingAt: block.timestamp + 1 days, cliff: 0});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForTests();
 
         vm.startBroadcast(privateKey);
@@ -150,10 +151,10 @@ contract DeployVesting is Script {
         tokensPurchased = new uint256[](2);
 
         wallets[0] = vm.addr(1);
-        tokensPurchased[0] = 500_000 ether;
+        tokensPurchased[0] += 500_000 ether;
 
         wallets[1] = vm.addr(2);
-        tokensPurchased[1] = 500_000 ether;
+        tokensPurchased[1] += 500_000 ether;
 
         return (wallets, tokensPurchased);
     }
@@ -163,7 +164,7 @@ contract DeployVesting is Script {
         tokensPurchased = new uint256[](1);
 
         wallets[0] = address(0);
-        tokensPurchased[0] = 10 ether;
+        tokensPurchased[0] += 10 ether;
 
         return (wallets, tokensPurchased);
     }

@@ -20,6 +20,7 @@ interface IVesting {
     event PointsClaimed(address indexed wallet, uint256 amount);
     event RefundsWidrawal(address indexed wallet, uint256 amount);
     event RefundPeriodSet(uint256 refundPeriod);
+    event VestingAtUpdated(uint256 timestamp);
 
     /// Enums
 

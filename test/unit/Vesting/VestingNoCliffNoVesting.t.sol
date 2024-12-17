@@ -54,7 +54,7 @@ contract VestingCliff2Test is Test {
 
     function testConstructor() public view {
         assertEq(vestingDuration, 0);
-        assertEq(vestingAt, block.timestamp + 1 hours);
+        assertEq(vestingAt, block.timestamp + 1 days);
         assertEq(cliff, 0);
     }
 

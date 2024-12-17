@@ -86,6 +86,7 @@ contract VestingPointsTest is Test {
     }
 
     function testPoints_revertClaimPointsWhenWalletHasNoPurchases() external idoTokenFilled {
+        vm.warp(vesting.cliffEndsAt());
         vm.startPrank(paul);
         vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "No tokens available"));
         vesting.claimPoints();
@@ -93,6 +94,7 @@ contract VestingPointsTest is Test {
     }
 
     function testPoints_revertClaimPointsWhenAskedForRefund() external idoTokenFilled {
+        vm.warp(vestingAt + 1 days);
         vm.startPrank(bob);
         vesting.askForRefund();
         vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Nothing to claim"));
@@ -101,6 +103,7 @@ contract VestingPointsTest is Test {
     }
 
     function testPoints_revertClaimPointsWereAlreadyClaimed() external idoTokenFilled pointsClaimed(bob) {
+        vm.warp(vestingAt + 1 days);
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(IVesting.IVesting__Unauthorized.selector, "Nothing to claim"));
         vesting.claimPoints();

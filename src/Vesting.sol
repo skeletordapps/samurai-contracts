@@ -214,6 +214,28 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @notice Allows the contract to update IVesting.Periods uint256 vestingAt - TGE date.
+     * @dev This function can only be called by the contract owner and is protected against reentrancy.
+     * @param timestamp uint256 - new TGE date.
+     */
+    function updateVestingAt(uint256 timestamp) external onlyOwner nonReentrant {
+        require(timestamp > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
+
+        // When vestingAt is already set by constructor
+        if (periods.vestingAt > 0) {
+            // Current block.timestamp must be lower than actual vestingAt timestamp
+            require(block.timestamp < periods.vestingAt, IVesting.IVesting__Unauthorized("Vesting is ongoing"));
+            // New timestamp should be greater than current
+            require(
+                periods.vestingAt < timestamp, IVesting.IVesting__Unauthorized("Not allowed to decrease vesting date")
+            );
+        }
+
+        periods.vestingAt = timestamp;
+        emit IVesting.VestingAtUpdated(timestamp);
+    }
+
+    /**
      * @notice Allows a wallet to ask for a refund.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
      * It reverts if refunding period has passed.
@@ -319,6 +341,10 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periods.vestingDuration);
     }
 
+    /**
+     * @notice Returns a list of addressess to be refunded.
+     * @return address[].
+     */
     function getWalletsToRefund() public view returns (address[] memory) {
         return walletsToRefund;
     }
@@ -342,8 +368,9 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *                  - vestingAt: Time when vesting starts.
      *                  - cliff: Cliff period after TGE before vesting starts.
      */
-    function _setPeriods(IVesting.Periods memory _periods) private nonReentrant {
+    function _setPeriods(IVesting.Periods memory _periods) private {
         require(_periods.vestingAt > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
+        require(block.timestamp < _periods.vestingAt, IVesting.IVesting__Invalid("Invalid vestingAt"));
 
         periods = _periods;
         emit IVesting.PeriodsSet(_periods);

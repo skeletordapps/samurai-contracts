@@ -57,7 +57,7 @@ contract VestingPeriodicDailyTest is Test {
         assertEq(totalPurchased, 1_000_000 ether);
         assertEq(tgeReleasePercent, 0.15e18);
         assertEq(vestingDuration, 1);
-        assertEq(vestingAt, block.timestamp);
+        assertEq(vestingAt, block.timestamp + 1 days);
         assertEq(cliff, 2);
         assertEq(vesting.purchases(bob), 500_000 ether);
         assertEq(vesting.purchases(mary), 500_000 ether);
