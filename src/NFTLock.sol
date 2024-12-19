@@ -6,28 +6,24 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {INFTLock} from "./interfaces/INFTLock.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
 import {console} from "forge-std/console.sol";
 
 contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
-    uint256 public constant POINTS_PER_LOCK = 10_000 ether;
-    uint256 public constant MAX_LOCKED = 5;
+    uint256 public constant MAX_LOCKED = 10;
+    uint256 public constant MAX_TO_BOOST = 5;
+    uint256 public constant MIN_MONTHS_LOCKED = 6;
     uint256 public totalLocked;
     uint256 public totalWithdrawal;
     ERC721 private immutable samNFT;
     IPoints private immutable iPoints;
     address public immutable nftAddress;
 
-    // Mapping to store lock information for each NFT
-    struct LockInfo {
-        address owner;
-        uint256 lockedAt;
-        uint256 unlockTime;
-    }
-
     mapping(uint256 tokenId => address wallet) public ownerOf;
     mapping(address wallet => uint8 total) public locks;
+    mapping(uint256 tokenId => uint256 lockedAt) public locksAt;
 
     constructor(address _samNFT, address _points) Ownable(msg.sender) {
         samNFT = ERC721(_samNFT);
@@ -54,6 +50,7 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
 
         ownerOf[id] = from;
         locks[from]++;
+        locksAt[id] = block.timestamp;
         totalLocked++;
 
         setBoost(from, locks[from]);
@@ -79,6 +76,10 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
      */
     function unlockNFT(uint256 tokenId) external nonReentrant {
         require(msg.sender == ownerOf[tokenId], "Not the owner");
+        require(
+            BokkyPooBahsDateTimeLibrary.diffMonths(locksAt[tokenId], block.timestamp) >= MIN_MONTHS_LOCKED,
+            "Not allowed to unlock before min period"
+        );
 
         delete ownerOf[tokenId];
         locks[msg.sender]--;
@@ -91,6 +92,6 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
     }
 
     function setBoost(address to, uint8 amount) private {
-        iPoints.setBoost(to, amount);
+        if (amount < 6) iPoints.setBoost(to, amount);
     }
 }

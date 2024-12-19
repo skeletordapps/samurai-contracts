@@ -9,6 +9,7 @@ import {NFTLock} from "../src/NFTLock.sol";
 import {INFTLock} from "../src/interfaces/INFTLock.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 
 contract NFTLockTest is Test {
     uint256 fork;
@@ -69,24 +70,26 @@ contract NFTLockTest is Test {
         assertEq(nftLock.locks(WALLET_A), 1);
     }
 
-    function testCanLockMaxOf5Tokens() external {
-        uint256[] memory tokensToLock = new uint256[](6);
+    function testCanLockMaxOf10Tokens() external {
+        uint256[] memory tokensToLock = new uint256[](10);
         tokensToLock[0] = 907;
         tokensToLock[1] = 1075;
         tokensToLock[2] = 1076;
         tokensToLock[3] = 1077;
         tokensToLock[4] = 1074;
         tokensToLock[5] = 1078;
+        tokensToLock[6] = 1079;
+        tokensToLock[7] = 1080;
+        tokensToLock[8] = 1081;
+        tokensToLock[9] = 1082;
 
         for (uint256 i = 0; i < tokensToLock.length; i++) {
-            if (i < 5) {
+            if (i < 10) {
                 vm.startPrank(WALLET_A);
                 samNFT.approve(address(nftLock), tokensToLock[i]);
                 nftLock.lockNFT(tokensToLock[i]);
                 vm.stopPrank();
 
-                // (address tokenOwner,,) = nftLock.lockInfos(tokensToLock[i]);
-                // assertEq(tokenOwner, WALLET_A);
                 assertEq(samNFT.ownerOf(tokensToLock[i]), address(nftLock));
             } else {
                 vm.startPrank(WALLET_A);
@@ -97,8 +100,8 @@ contract NFTLockTest is Test {
             }
         }
 
-        assertEq(nftLock.locks(WALLET_A), 5);
-        assertEq(nftLock.totalLocked(), 5);
+        assertEq(nftLock.locks(WALLET_A), 10);
+        assertEq(nftLock.totalLocked(), 10);
         assertEq(nftLock.totalWithdrawal(), 0);
         assertEq(samuraiPoints.boostOf(WALLET_A), 3 ether);
         assertEq(ERC20(address(samuraiPoints)).balanceOf(WALLET_A), 0);
@@ -126,8 +129,16 @@ contract NFTLockTest is Test {
         vm.stopPrank();
     }
 
+    function testRevertUnlockBeforeMinPeriod() external locked(WALLET_A, 907) {
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, 5));
+        vm.startPrank(WALLET_A);
+        vm.expectRevert("Not allowed to unlock before min period");
+        nftLock.unlockNFT(907);
+        vm.stopPrank();
+    }
+
     function testCanUnlock() external locked(WALLET_A, 907) {
-        vm.warp(block.timestamp + 30 days * 3);
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, nftLock.MIN_MONTHS_LOCKED()));
         vm.startPrank(WALLET_A);
         vm.expectEmit(true, true, true, true);
         emit INFTLock.NFTUnlocked(WALLET_A, 907);
