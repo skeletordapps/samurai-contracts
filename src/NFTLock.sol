@@ -20,6 +20,7 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
     ERC721 private immutable samNFT;
     IPoints private immutable iPoints;
     address public immutable nftAddress;
+    bool public lockPeriodDisabled;
 
     mapping(uint256 tokenId => address wallet) public ownerOf;
     mapping(address wallet => uint8 total) public locks;
@@ -29,6 +30,11 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
         samNFT = ERC721(_samNFT);
         nftAddress = _samNFT;
         iPoints = IPoints(_points);
+    }
+
+    modifier isLockOwner(address wallet, uint256 tokenId) {
+        require(wallet == ownerOf[tokenId], INFTLock.INFTLock__Error("Not the owner"));
+        _;
     }
 
     /// @notice Pause the contract, preventing further locking actions
@@ -41,19 +47,24 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
         _unpause();
     }
 
+    function disableLockPeriod() external onlyOwner nonReentrant {
+        lockPeriodDisabled = true;
+        emit INFTLock.LockPeriodDisabled(block.timestamp);
+    }
+
     function onERC721Received(address operator, address from, uint256 id, bytes calldata)
         external
         override
         returns (bytes4)
     {
-        require(operator == samNFT.ownerOf(id), "Not the owner");
+        require(operator == samNFT.ownerOf(id), INFTLock.INFTLock__Error("Not the owner"));
 
         ownerOf[id] = from;
         locks[from]++;
         locksAt[id] = block.timestamp;
         totalLocked++;
 
-        setBoost(from, locks[from]);
+        _setBoost(from, locks[from]);
         emit INFTLock.NFTLocked(msg.sender, id);
 
         return this.onERC721Received.selector;
@@ -64,34 +75,48 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
      * @param tokenId ID of the NFT to lock.
      */
     function lockNFT(uint256 tokenId) external nonReentrant whenNotPaused {
-        require(msg.sender == samNFT.ownerOf(tokenId), "Not the owner");
-        require(locks[msg.sender] + 1 <= MAX_LOCKED, "Exceeds limit");
+        require(msg.sender == samNFT.ownerOf(tokenId), INFTLock.INFTLock__Error("Not the owner"));
+        require(locks[msg.sender] + 1 <= MAX_LOCKED, INFTLock.INFTLock__Error("Exceeds limit"));
 
         samNFT.safeTransferFrom(msg.sender, address(this), tokenId);
+    }
+
+    function unlockNFTForWallet(address wallet, uint256 tokenId)
+        external
+        onlyOwner
+        isLockOwner(wallet, tokenId)
+        nonReentrant
+    {
+        _unlock(wallet, tokenId);
     }
 
     /**
      * @dev Unlocks an NFT.
      * @param tokenId ID of the NFT to unlock.
      */
-    function unlockNFT(uint256 tokenId) external nonReentrant {
-        require(msg.sender == ownerOf[tokenId], "Not the owner");
-        require(
-            BokkyPooBahsDateTimeLibrary.diffMonths(locksAt[tokenId], block.timestamp) >= MIN_MONTHS_LOCKED,
-            "Not allowed to unlock before min period"
-        );
+    function unlockNFT(uint256 tokenId) external isLockOwner(msg.sender, tokenId) nonReentrant {
+        if (!lockPeriodDisabled) {
+            require(
+                BokkyPooBahsDateTimeLibrary.diffMonths(locksAt[tokenId], block.timestamp) >= MIN_MONTHS_LOCKED,
+                INFTLock.INFTLock__Error("Not allowed to unlock before min period")
+            );
+        }
 
-        delete ownerOf[tokenId];
-        locks[msg.sender]--;
-        totalWithdrawal++;
-
-        setBoost(msg.sender, locks[msg.sender]);
-        emit INFTLock.NFTUnlocked(msg.sender, tokenId);
-
-        samNFT.safeTransferFrom(address(this), msg.sender, tokenId);
+        _unlock(msg.sender, tokenId);
     }
 
-    function setBoost(address to, uint8 amount) private {
+    function _unlock(address wallet, uint256 tokenId) private {
+        delete ownerOf[tokenId];
+        locks[wallet]--;
+        totalWithdrawal++;
+
+        _setBoost(wallet, locks[wallet]);
+        emit INFTLock.NFTUnlocked(wallet, tokenId);
+
+        samNFT.safeTransferFrom(address(this), wallet, tokenId);
+    }
+
+    function _setBoost(address to, uint8 amount) private {
         if (amount < 6) iPoints.setBoost(to, amount);
     }
 }
