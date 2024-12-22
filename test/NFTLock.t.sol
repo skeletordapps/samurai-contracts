@@ -67,7 +67,8 @@ contract NFTLockTest is Test {
 
         assertEq(samuraiPoints.boostOf(WALLET_A), 0.25 ether);
         assertEq(samNFT.ownerOf(tokenId), address(nftLock));
-        assertEq(nftLock.locks(WALLET_A), 1);
+        assertEq(nftLock.locksCounter(WALLET_A), 1);
+        assertEq(nftLock.getTokenId(WALLET_A, 0), 907);
     }
 
     function testCanLockMaxOf10Tokens() external {
@@ -100,7 +101,7 @@ contract NFTLockTest is Test {
             }
         }
 
-        assertEq(nftLock.locks(WALLET_A), 10);
+        assertEq(nftLock.locksCounter(WALLET_A), 10);
         assertEq(nftLock.totalLocked(), 10);
         assertEq(nftLock.totalWithdrawal(), 0);
         assertEq(samuraiPoints.boostOf(WALLET_A), 3 ether);
@@ -115,45 +116,61 @@ contract NFTLockTest is Test {
         _;
     }
 
-    function testRevertUnlockWithWrongId() external locked(WALLET_A, 907) {
-        vm.startPrank(WALLET_A);
-        vm.expectRevert(abi.encodeWithSelector(INFTLock.INFTLock__Error.selector, "Not the owner"));
-        nftLock.unlockNFT(905);
-        vm.stopPrank();
-    }
-
     function testRevertUnlockWhenNotTheOwner() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
         vm.startPrank(WALLET_B);
         vm.expectRevert(abi.encodeWithSelector(INFTLock.INFTLock__Error.selector, "Not the owner"));
-        nftLock.unlockNFT(907);
+        nftLock.unlockNFT(index, 907);
         vm.stopPrank();
     }
 
     function testRevertUnlockBeforeMinPeriod() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
         vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, 5));
         vm.startPrank(WALLET_A);
         vm.expectRevert(
             abi.encodeWithSelector(INFTLock.INFTLock__Error.selector, "Not allowed to unlock before min period")
         );
-        nftLock.unlockNFT(907);
+        nftLock.unlockNFT(index, 907);
+        vm.stopPrank();
+    }
+
+    function testRevertUnlockWithWrongId() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, nftLock.MIN_MONTHS_LOCKED()));
+        vm.startPrank(WALLET_A);
+        vm.expectRevert(abi.encodeWithSelector(INFTLock.INFTLock__Error.selector, "Not the owner"));
+        nftLock.unlockNFT(index, 905);
+        vm.stopPrank();
+    }
+
+    function testRevertUnlockWithWrongIndex() external locked(WALLET_A, 907) {
+        uint8 index = 9;
+        vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, nftLock.MIN_MONTHS_LOCKED()));
+        vm.startPrank(WALLET_A);
+        vm.expectRevert(abi.encodeWithSelector(INFTLock.INFTLock__Error.selector, "Wrong index"));
+        nftLock.unlockNFT(index, 907);
         vm.stopPrank();
     }
 
     function testCanUnlock() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
         vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(block.timestamp, nftLock.MIN_MONTHS_LOCKED()));
         vm.startPrank(WALLET_A);
         vm.expectEmit(true, true, true, true);
         emit INFTLock.NFTUnlocked(WALLET_A, 907);
-        nftLock.unlockNFT(907);
+        nftLock.unlockNFT(index, 907);
         vm.stopPrank();
 
         assertEq(samNFT.ownerOf(907), WALLET_A);
-        assertEq(nftLock.locks(WALLET_A), 0);
+        assertEq(nftLock.locksCounter(WALLET_A), 0);
         assertEq(nftLock.totalWithdrawal(), 1);
+        assertEq(nftLock.getTokenId(WALLET_A, 0), 0);
         assertEq(samuraiPoints.boostOf(WALLET_A), 0);
     }
 
     function testCanUnlockBeforePeriodWhenPeriodDisabled() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
         vm.warp(block.timestamp + 30 days); // 30 days after lock
 
         assertTrue(
@@ -161,22 +178,23 @@ contract NFTLockTest is Test {
         );
 
         vm.startPrank(owner);
-        nftLock.disableLockPeriod();
+        nftLock.toggleLockPeriod();
         vm.stopPrank();
 
         vm.startPrank(WALLET_A);
         vm.expectEmit(true, true, true, true);
         emit INFTLock.NFTUnlocked(WALLET_A, 907);
-        nftLock.unlockNFT(907);
+        nftLock.unlockNFT(index, 907);
         vm.stopPrank();
 
         assertEq(samNFT.ownerOf(907), WALLET_A);
-        assertEq(nftLock.locks(WALLET_A), 0);
+        assertEq(nftLock.locksCounter(WALLET_A), 0);
         assertEq(nftLock.totalWithdrawal(), 1);
         assertEq(samuraiPoints.boostOf(WALLET_A), 0);
     }
 
     function testOwnerCanUnlockAnytimeForAWallet() external locked(WALLET_A, 907) {
+        uint8 index = nftLock.locksCounter(WALLET_A) - 1;
         vm.warp(block.timestamp + 30 days); // 30 days after lock
 
         assertTrue(
@@ -185,11 +203,11 @@ contract NFTLockTest is Test {
 
         vm.startPrank(owner);
         emit INFTLock.NFTUnlocked(WALLET_A, 907);
-        nftLock.unlockNFTForWallet(WALLET_A, 907);
+        nftLock.unlockNFTForWallet(WALLET_A, index, 907);
         vm.stopPrank();
 
         assertEq(samNFT.ownerOf(907), WALLET_A);
-        assertEq(nftLock.locks(WALLET_A), 0);
+        assertEq(nftLock.locksCounter(WALLET_A), 0);
         assertEq(nftLock.totalWithdrawal(), 1);
         assertEq(samuraiPoints.boostOf(WALLET_A), 0);
     }

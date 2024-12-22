@@ -23,8 +23,9 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
     bool public lockPeriodDisabled;
 
     mapping(uint256 tokenId => address wallet) public ownerOf;
-    mapping(address wallet => uint8 total) public locks;
+    mapping(address wallet => uint8 total) public locksCounter;
     mapping(uint256 tokenId => uint256 lockedAt) public locksAt;
+    mapping(address wallet => mapping(uint8 index => uint256 tokenId)) public locks;
 
     constructor(address _samNFT, address _points) Ownable(msg.sender) {
         samNFT = ERC721(_samNFT);
@@ -32,6 +33,12 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
         iPoints = IPoints(_points);
     }
 
+    /**
+     * @dev Modifier to restrict function calls to the owner of the specified NFT.
+     * @param wallet Address of the wallet to check ownership for.
+     * @param tokenId ID of the NFT to check ownership for.
+     * @custom:error Not the owner
+     */
     modifier isLockOwner(address wallet, uint256 tokenId) {
         require(wallet == ownerOf[tokenId], INFTLock.INFTLock__Error("Not the owner"));
         _;
@@ -47,11 +54,35 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
         _unpause();
     }
 
-    function disableLockPeriod() external onlyOwner nonReentrant {
-        lockPeriodDisabled = true;
-        emit INFTLock.LockPeriodDisabled(block.timestamp);
+    /**
+     * @notice This function should be used with extreme caution as it bypasses
+     * the intended lock period mechanism.
+     * @dev Disables the minimum lock period requirement.
+     * Can only be called by the contract owner.
+     * emit LockPeriodDisabled Emitted when the lock period is disabled.
+     */
+    function toggleLockPeriod() external onlyOwner nonReentrant {
+        bool isDisabled = !lockPeriodDisabled;
+        lockPeriodDisabled = isDisabled;
+        emit INFTLock.LockPeriodToggled(block.timestamp, isDisabled);
     }
 
+    /**
+     * @notice Handles the receipt of an NFT.
+     * @dev This function is called by the underlying ERC721 contract
+     * when an NFT is transferred to this contract.
+     *
+     * @param operator Address of the operator transferring the NFT.
+     * @param from Address of the NFT's previous owner.
+     * @param id ID of the NFT being received.
+     *
+     * @return bytes4 This function must return the ERC721Receiver interface ID
+     *         to indicate successful receipt of the NFT.
+     *
+     * @custom:error Not the owner
+     *         Reverts if the operator transferring the NFT is not
+     *         the actual owner of the NFT.
+     */
     function onERC721Received(address operator, address from, uint256 id, bytes calldata)
         external
         override
@@ -60,11 +91,12 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
         require(operator == samNFT.ownerOf(id), INFTLock.INFTLock__Error("Not the owner"));
 
         ownerOf[id] = from;
-        locks[from]++;
+        locks[from][locksCounter[from]] = id;
         locksAt[id] = block.timestamp;
+        locksCounter[from]++;
         totalLocked++;
 
-        _setBoost(from, locks[from]);
+        _setBoost(from, locksCounter[from]);
         emit INFTLock.NFTLocked(msg.sender, id);
 
         return this.onERC721Received.selector;
@@ -73,28 +105,38 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
     /**
      * @dev Locks an NFT.
      * @param tokenId ID of the NFT to lock.
+     * @custom:error Exceeds limit
+     * @custom:error Not the owner
      */
     function lockNFT(uint256 tokenId) external nonReentrant whenNotPaused {
         require(msg.sender == samNFT.ownerOf(tokenId), INFTLock.INFTLock__Error("Not the owner"));
-        require(locks[msg.sender] + 1 <= MAX_LOCKED, INFTLock.INFTLock__Error("Exceeds limit"));
+        require(locksCounter[msg.sender] + 1 <= MAX_LOCKED, INFTLock.INFTLock__Error("Exceeds limit"));
 
         samNFT.safeTransferFrom(msg.sender, address(this), tokenId);
     }
 
-    function unlockNFTForWallet(address wallet, uint256 tokenId)
+    /**
+     * @dev Unlocks an NFT for a specified wallet.
+     * Can only be called by the contract owner.
+     * @param wallet Address of the wallet to unlock the NFT for.
+     * @param tokenId ID of the NFT to unlock.
+     */
+    function unlockNFTForWallet(address wallet, uint8 index, uint256 tokenId)
         external
         onlyOwner
         isLockOwner(wallet, tokenId)
         nonReentrant
     {
-        _unlock(wallet, tokenId);
+        _unlock(wallet, index, tokenId);
     }
 
     /**
      * @dev Unlocks an NFT.
      * @param tokenId ID of the NFT to unlock.
+     * @custom:error Not allowed to unlock before min period
+     * @custom:error Not the owner
      */
-    function unlockNFT(uint256 tokenId) external isLockOwner(msg.sender, tokenId) nonReentrant {
+    function unlockNFT(uint8 index, uint256 tokenId) external isLockOwner(msg.sender, tokenId) nonReentrant {
         if (!lockPeriodDisabled) {
             require(
                 BokkyPooBahsDateTimeLibrary.diffMonths(locksAt[tokenId], block.timestamp) >= MIN_MONTHS_LOCKED,
@@ -102,20 +144,38 @@ contract NFTLock is IERC721Receiver, Pausable, ReentrancyGuard, Ownable {
             );
         }
 
-        _unlock(msg.sender, tokenId);
+        _unlock(msg.sender, index, tokenId);
     }
 
-    function _unlock(address wallet, uint256 tokenId) private {
+    function getTokenId(address wallet, uint8 index) public view returns (uint256) {
+        return locks[wallet][index];
+    }
+
+    /**
+     * @dev Private function to handle NFT unlocking logic.
+     * @param wallet Address of the wallet to unlock the NFT for.
+     * @param tokenId ID of the NFT to unlock.
+     */
+    function _unlock(address wallet, uint8 index, uint256 tokenId) private {
+        require(locks[wallet][index] == tokenId, INFTLock.INFTLock__Error("Wrong index"));
+
         delete ownerOf[tokenId];
-        locks[wallet]--;
+        delete locks[wallet][index];
+        locksCounter[wallet]--;
         totalWithdrawal++;
 
-        _setBoost(wallet, locks[wallet]);
+        _setBoost(wallet, locksCounter[wallet]);
         emit INFTLock.NFTUnlocked(wallet, tokenId);
 
         samNFT.safeTransferFrom(address(this), wallet, tokenId);
     }
 
+    /**
+     * @dev Sets the boost for the given wallet based on the number of locked NFTs.
+     * Max of 5 NFTs are boosted.
+     * @param to Address of the wallet to set the boost for.
+     * @param amount Number of NFTs currently locked by the wallet.
+     */
     function _setBoost(address to, uint8 amount) private {
         if (amount < 6) iPoints.setBoost(to, amount);
     }
