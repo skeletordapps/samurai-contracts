@@ -311,14 +311,18 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The wallet address to calculate claimable tokens for.
      * @return claimablePoints The total amount of claimable points for the wallet.
      */
-    function previewClaimablePoints(address wallet) public view returns (uint256) {
+    function previewClaimablePoints(address wallet) public returns (uint256) {
         uint256 purchased = purchases[wallet];
 
         if (purchased == 0) return 0; // wallet has no purchases
         if (askedRefund[wallet]) return 0; // wallets that asked for refund cannot get any points
         if (pointsClaimed[wallet] > 0) return 0; // wallet already claimed
 
-        return ud(purchased).mul(ud(pointsPerToken)).intoUint256();
+        uint256 boost = IPoints(points).boostOf(wallet);
+        UD60x18 accPoints = ud(purchased).mul(ud(pointsPerToken));
+        UD60x18 pointsPlusBooster = accPoints.add(accPoints.mul(ud(boost)));
+
+        return pointsPlusBooster.intoUint256();
     }
 
     /**

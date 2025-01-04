@@ -10,7 +10,7 @@ import {console} from "forge-std/console.sol";
 contract DeployNFTLock is Script {
     function run() external returns (NFTLock nftLock) {
         address samNFT = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
-        address samuraiPoints = address(0);
+        address samuraiPoints = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
         vm.startBroadcast();
         nftLock = new NFTLock(samNFT, samuraiPoints);
         vm.stopBroadcast();

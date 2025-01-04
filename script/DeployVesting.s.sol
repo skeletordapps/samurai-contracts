@@ -77,6 +77,44 @@ contract DeployVesting is Script {
         return vesting;
     }
 
+    function runForPointsTests(IVesting.VestingType _vestingType) external returns (Vesting vesting) {
+        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.None; // Assume is "Linear Vesting" or "Cliff Vesting" first
+
+        if (_vestingType == IVesting.VestingType.PeriodicVesting) vestingPeriodType = IVesting.PeriodType.Months;
+
+        uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+        ERC20Mock newToken = new ERC20Mock("IDO TOKEN 2", "IDT2");
+        address idoToken = address(newToken);
+        uint256 tgeReleasePercent = 0.15 ether;
+        uint256 pointsPerToken = 0.315e18;
+        IVesting.Periods memory periods =
+            IVesting.Periods({vestingDuration: 3, vestingAt: block.timestamp + 1 days, cliff: 2});
+        (address[] memory wallets, uint256[] memory tokensPurchased) = loadWalletsForPointsTests();
+
+        vm.startBroadcast(privateKey);
+        address points = address(0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe); // SPS TOKEN
+
+        IPoints sp = IPoints(points);
+
+        vesting = new Vesting(
+            idoToken,
+            points,
+            tgeReleasePercent,
+            pointsPerToken,
+            _vestingType,
+            vestingPeriodType,
+            periods,
+            wallets,
+            tokensPurchased
+        );
+
+        sp.grantRole(IPoints.Roles.MINTER, address(vesting));
+        loadWallets();
+        vm.stopBroadcast();
+
+        return vesting;
+    }
+
     function runForPeriodicTests(IVesting.PeriodType _vestingPeriodType, uint256 _vestingDuration)
         external
         returns (Vesting vesting)
@@ -151,6 +189,23 @@ contract DeployVesting is Script {
         tokensPurchased = new uint256[](2);
 
         wallets[0] = vm.addr(1);
+        tokensPurchased[0] += 500_000 ether;
+
+        wallets[1] = vm.addr(2);
+        tokensPurchased[1] += 500_000 ether;
+
+        return (wallets, tokensPurchased);
+    }
+
+    function loadWalletsForPointsTests()
+        internal
+        pure
+        returns (address[] memory wallets, uint256[] memory tokensPurchased)
+    {
+        wallets = new address[](2);
+        tokensPurchased = new uint256[](2);
+
+        wallets[0] = 0xcaE8cF1e2119484D6CC3B6EFAad2242aDBDB1Ea8;
         tokensPurchased[0] += 500_000 ether;
 
         wallets[1] = vm.addr(2);

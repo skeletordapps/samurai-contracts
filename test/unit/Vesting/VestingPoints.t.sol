@@ -27,12 +27,19 @@ contract VestingPointsTest is Test {
     uint256 vestingAt;
     uint256 cliff;
 
+    uint256 fork;
+    string public RPC_URL;
+
     function setUp() public virtual {
+        RPC_URL = vm.envString("BASE_RPC_URL");
+        fork = vm.createFork(RPC_URL);
+        vm.selectFork(fork);
+
         deployer = new DeployVesting();
-        vesting = deployer.runForTests(IVesting.VestingType.LinearVesting);
+        vesting = deployer.runForPointsTests(IVesting.VestingType.LinearVesting);
         owner = vesting.owner();
 
-        bob = vm.addr(1);
+        bob = 0xcaE8cF1e2119484D6CC3B6EFAad2242aDBDB1Ea8;
         vm.label(bob, "bob");
 
         mary = vm.addr(2);
@@ -116,9 +123,17 @@ contract VestingPointsTest is Test {
         uint256 expectedPoints = ud(500000000000000000000000).mul(ud(0.315e18)).intoUint256(); // purchase * pointsPerToken
         assertEq(expectedPoints, 157_500 ether);
 
+        uint256 expectedBoost = 0.25e18;
+
+        UD60x18 pointsWithBoost = ud(expectedPoints).add(ud(expectedPoints).mul(ud(expectedBoost)));
+
+        expectedPoints = pointsWithBoost.intoUint256();
+
         uint256 previewedPoints = vesting.previewClaimablePoints(bob);
 
         assertEq(previewedPoints, expectedPoints);
+
+        uint256 walletBalanceInPoints = ERC20(vesting.points()).balanceOf(bob);
 
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, true);
@@ -126,6 +141,6 @@ contract VestingPointsTest is Test {
         vesting.claimPoints();
         vm.stopPrank();
 
-        assertEq(ERC20(vesting.points()).balanceOf(bob), expectedPoints);
+        assertEq(ERC20(vesting.points()).balanceOf(bob), walletBalanceInPoints + expectedPoints);
     }
 }
