@@ -11,9 +11,8 @@ import {ISamuraiTiers} from "./interfaces/ISamuraiTiers.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
-import {console} from "forge-std/console.sol";
 
-contract Vesting is Ownable, Pausable, ReentrancyGuard {
+contract DeployedVesting is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     uint256 public immutable tgeReleasePercent;
@@ -21,7 +20,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     address public immutable token;
     address public immutable points;
     IVesting.VestingType public immutable vestingType;
-    IVesting.PeriodType public immutable vestingPeriodType;
 
     uint256 public refundPeriod = 48 hours;
     uint256 public totalPurchased;
@@ -48,7 +46,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param _tgeReleasePercent TGE release percent.
      * @param _pointsPerToken amount of points per token purchased
      * @param _vestingType Type of vesting schedule.
-     * @param _vestingPeriodType Type of vesting unlocks
      * @param _periods Struct containing initial periods configuration: registration start, participation start/end, TGE vesting at.
      * @param _wallets List of wallets addresses.
      * @param _tokensPurchased List of tokens purchased by wallets.
@@ -59,7 +56,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         uint256 _tgeReleasePercent,
         uint256 _pointsPerToken,
         IVesting.VestingType _vestingType,
-        IVesting.PeriodType _vestingPeriodType,
         IVesting.Periods memory _periods,
         address[] memory _wallets,
         uint256[] memory _tokensPurchased
@@ -67,14 +63,12 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         require(_token != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(_points != address(0), IVesting.IVesting__Unauthorized("Invalid address"));
         require(uint256(_vestingType) < 3, IVesting.IVesting__Invalid("Invalid vesting type"));
-        require(uint256(_vestingPeriodType) < 5, IVesting.IVesting__Invalid("Invalid vesting period type"));
 
         token = _token;
         points = _points;
         tgeReleasePercent = _tgeReleasePercent; // this can be zero
         pointsPerToken = _pointsPerToken;
         vestingType = _vestingType;
-        vestingPeriodType = _vestingPeriodType;
         _setPeriods(_periods);
         _setPurchases(_wallets, _tokensPurchased);
     }
@@ -215,28 +209,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows the contract to update IVesting.Periods uint256 vestingAt - TGE date.
-     * @dev This function can only be called by the contract owner and is protected against reentrancy.
-     * @param timestamp uint256 - new TGE date.
-     */
-    function updateVestingAt(uint256 timestamp) external onlyOwner nonReentrant {
-        require(timestamp > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
-
-        // When vestingAt is already set by constructor
-        if (periods.vestingAt > 0) {
-            // Current block.timestamp must be lower than actual vestingAt timestamp
-            require(block.timestamp < periods.vestingAt, IVesting.IVesting__Unauthorized("Vesting is ongoing"));
-            // New timestamp should be greater than current
-            require(
-                periods.vestingAt < timestamp, IVesting.IVesting__Unauthorized("Not allowed to decrease vesting date")
-            );
-        }
-
-        periods.vestingAt = timestamp;
-        emit IVesting.VestingAtUpdated(timestamp);
-    }
-
-    /**
      * @notice Allows a wallet to ask for a refund.
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
      * It reverts if refunding period has passed.
@@ -299,7 +271,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @return claimableTokens The total amount of claimable tokens for the wallet.
      */
     function previewClaimableTokens(address wallet) public view returns (uint256) {
-        console.log("PART 0");
         return _calculateVestedByWallet(wallet).intoUint256();
     }
 
@@ -313,18 +284,14 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The wallet address to calculate claimable tokens for.
      * @return claimablePoints The total amount of claimable points for the wallet.
      */
-    function previewClaimablePoints(address wallet) public returns (uint256) {
+    function previewClaimablePoints(address wallet) public view returns (uint256) {
         uint256 purchased = purchases[wallet];
 
         if (purchased == 0) return 0; // wallet has no purchases
         if (askedRefund[wallet]) return 0; // wallets that asked for refund cannot get any points
         if (pointsClaimed[wallet] > 0) return 0; // wallet already claimed
 
-        uint256 boost = IPoints(points).boostOf(wallet);
-        UD60x18 accPoints = ud(purchased).mul(ud(pointsPerToken));
-        UD60x18 pointsPlusBooster = accPoints.add(accPoints.mul(ud(boost)));
-
-        return pointsPlusBooster.intoUint256();
+        return ud(purchased).mul(ud(pointsPerToken)).intoUint256();
     }
 
     /**
@@ -347,10 +314,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         return BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt(), periods.vestingDuration);
     }
 
-    /**
-     * @notice Returns a list of addressess to be refunded.
-     * @return address[].
-     */
     function getWalletsToRefund() public view returns (address[] memory) {
         return walletsToRefund;
     }
@@ -374,9 +337,10 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *                  - vestingAt: Time when vesting starts.
      *                  - cliff: Cliff period after TGE before vesting starts.
      */
-    function _setPeriods(IVesting.Periods memory _periods) private {
+    function _setPeriods(IVesting.Periods memory _periods) private nonReentrant {
+        require(_periods.vestingDuration > 0, IVesting.IVesting__Invalid("Invalid vestingDuration"));
         require(_periods.vestingAt > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
-        require(block.timestamp < _periods.vestingAt, IVesting.IVesting__Invalid("Invalid vestingAt"));
+        require(_periods.cliff > 0, IVesting.IVesting__Invalid("Invalid cliff"));
 
         periods = _periods;
         emit IVesting.PeriodsSet(_periods);
@@ -454,22 +418,20 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
             if (vestingType == IVesting.VestingType.LinearVesting) {
                 /// LINEAR VESTING =================================================
 
-                UD60x18 duration =
-                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Seconds));
+                UD60x18 duration = convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Days));
                 UD60x18 elapsedTime = convert(block.timestamp - _cliffEndsAt);
                 UD60x18 tokensPerSec = maxOfTokensForVesting.div(duration);
                 vestedAmount = tokensPerSec.mul(elapsedTime).add(tgeAmount);
             } else if (vestingType == IVesting.VestingType.PeriodicVesting) {
                 /// PERIODC VESTING ================================================
 
-                IVesting.PeriodType vestingPeriodTypeCopy = vestingPeriodType;
-                UD60x18 totalForPeriod =
-                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, vestingPeriodTypeCopy));
-                UD60x18 elapsedPeriod =
-                    convert(_getDiffByPeriodType(_cliffEndsAt, block.timestamp, vestingPeriodTypeCopy));
+                UD60x18 totalMonths =
+                    convert(_getDiffByPeriodType(_cliffEndsAt, _vestingEndsAt, IVesting.PeriodType.Months));
+                UD60x18 elapsedMonths =
+                    convert(_getDiffByPeriodType(_cliffEndsAt, block.timestamp, IVesting.PeriodType.Months));
 
-                UD60x18 tokensForPeriod = maxOfTokensForVesting.div(totalForPeriod);
-                UD60x18 vested = tokensForPeriod.mul(elapsedPeriod);
+                UD60x18 tokensPerMonth = maxOfTokensForVesting.div(totalMonths);
+                UD60x18 vested = tokensPerMonth.mul(elapsedMonths);
                 vestedAmount = vested.add(tgeAmount);
             }
 
@@ -477,100 +439,60 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
-        UD60x18 zero = convert(0);
-
-        if (block.timestamp < periods.vestingAt) return zero;
-        if (purchases[wallet] == 0) return zero;
-        if (askedRefund[wallet]) return zero;
-
-        UD60x18 walletTotal = ud(purchases[wallet]);
-        UD60x18 claimed = ud(tokensClaimed[wallet]);
-
-        if (claimed >= walletTotal) return zero;
-
-        // Calculate total vested tokens
-        UD60x18 totalVested = _calculateVestedTokens();
-        UD60x18 totalSupply = ud(totalPurchased);
-
-        // Direct proportion calculation to avoid multiple ones
-        UD60x18 walletVested = totalVested.mul(walletTotal).div(totalSupply);
-
-        // more safety
-        if (walletVested > walletTotal) {
-            walletVested = walletTotal;
-        }
-
-        if (walletVested <= claimed) {
-            return zero;
-        }
-
-        return walletVested.sub(claimed);
-    }
     /**
      * @notice Calculates the amount of tokens available for a specific wallet.
      * @dev This function calculates the amount of tokens a participant can claim at the moment.
      * @param wallet The participant's wallet address (address).
      * @return The available tokens amount (UD60x18).
      */
-    // function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
-    //     UD60x18 zero = convert(0);
-    //     IVesting.Periods memory periodsCopy = periods;
+    function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
+        UD60x18 zero = convert(0);
+        IVesting.Periods memory periodsCopy = periods;
 
-    //     if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
-    //     if (purchases[wallet] == 0) return zero; // Wallet has no purchases
-    //     if (askedRefund[wallet]) return zero;
+        if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
+        if (purchases[wallet] == 0) return zero; // Wallet has no purchases
+        if (askedRefund[wallet]) return zero;
 
-    //     console.log("PART 1");
+        UD60x18 max = ud(purchases[wallet]);
+        UD60x18 claimed = ud(tokensClaimed[wallet]);
 
-    //     UD60x18 max = ud(purchases[wallet]);
-    //     UD60x18 claimed = ud(tokensClaimed[wallet]);
+        /// User already claimed all tokens vested
+        if (claimed == max) return zero;
 
-    //     /// User already claimed all tokens vested
-    //     if (claimed == max) return zero;
+        uint256 _cliffEndsAt = cliffEndsAt();
+        bool isTgeClaimed = hasClaimedTGE[wallet];
 
-    //     console.log("PART 2");
+        /// Only TGE is vested during cliff period
+        if (block.timestamp <= _cliffEndsAt) return isTgeClaimed ? zero : _calculateTGETokens(wallet);
 
-    //     uint256 _cliffEndsAt = cliffEndsAt();
-    //     bool isTgeClaimed = hasClaimedTGE[wallet];
+        UD60x18 balance = max.sub(claimed);
 
-    //     /// Only TGE is vested during cliff period
-    //     if (block.timestamp <= _cliffEndsAt) return isTgeClaimed ? zero : _calculateTGETokens(wallet);
+        /// All tokens were vested -> return all balance remaining
+        if (block.timestamp > vestingEndsAt()) return balance;
 
-    //     console.log("PART 3");
+        /// CALCS  ================================================
 
-    //     UD60x18 balance = max.sub(claimed);
+        /// CLIFF VESTING
+        if (vestingType == IVesting.VestingType.CliffVesting) return balance;
 
-    //     /// All tokens were vested -> return all balance remaining
-    //     if (block.timestamp > vestingEndsAt()) return balance;
+        /// LINEAR VESTING & PERIODIC VESTING
+        UD60x18 total = ud(totalPurchased);
+        UD60x18 vested = _calculateVestedTokens();
+        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
+        UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
+        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
+        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
+        UD60x18 walletClaimable = walletVested.sub(claimed);
 
-    //     console.log("PART 4");
-
-    //     /// CALCS  ================================================
-
-    //     /// CLIFF VESTING
-    //     if (vestingType == IVesting.VestingType.CliffVesting) return balance;
-
-    //     console.log("VESTING PART");
-
-    //     /// LINEAR VESTING & PERIODIC VESTING
-    //     UD60x18 total = ud(totalPurchased);
-    //     UD60x18 vested = _calculateVestedTokens();
-    //     UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-    //     UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
-    //     UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-    //     UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-    //     UD60x18 walletClaimable = walletVested.sub(claimed);
-
-    //     return walletClaimable;
-    // }
+        return walletClaimable;
+    }
 
     /**
      * @dev Calculates the time difference between two timestamps based on a given period type.
      *
      * @param start The start timestamp.
      * @param end The end timestamp.
-     * @param periodType The period type (days, weeks or months).
+     * @param periodType The period type (days or months).
      * @return The calculated time difference in seconds (for days) or months.
      */
     function _getDiffByPeriodType(uint256 start, uint256 end, IVesting.PeriodType periodType)
@@ -578,22 +500,14 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         pure
         returns (uint256)
     {
-        if (periodType == IVesting.PeriodType.Seconds) {
-            // return number of days in seconds
+        if (periodType == IVesting.PeriodType.Days) {
+            // return number of days times seconds per day
             // eg: 2 * 86400 = number of days in secondss
             return BokkyPooBahsDateTimeLibrary.diffDays(start, end) * 86_400;
-        } else if (periodType == IVesting.PeriodType.Days) {
-            // return number of days
-            return BokkyPooBahsDateTimeLibrary.diffDays(start, end);
-        } else if (periodType == IVesting.PeriodType.Weeks) {
-            // return number of weeks
-            uint256 estimatedDays = BokkyPooBahsDateTimeLibrary.diffDays(start, end);
-            uint256 estimatedWeeks = estimatedDays / 7; // Round down to the nearest week
-            return estimatedWeeks;
-        } else {
-            // return number of months
-            // eg 2 or 8
-            return BokkyPooBahsDateTimeLibrary.diffMonths(start, end);
         }
+
+        // return number of months
+        // eg 2 or 8
+        return BokkyPooBahsDateTimeLibrary.diffMonths(start, end);
     }
 }

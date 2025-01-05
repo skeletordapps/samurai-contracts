@@ -137,7 +137,6 @@ contract VestingPeriodicMonthlyTest is Test {
     function testPeriodicMonthly_CanClaimTGEPlusOneMonthAmountUnlocked() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
-        uint256 purchased = vesting.purchases(bob);
         uint256 expectedTGEAmount = 75_000 ether;
 
         vm.warp(cliffEndsAt - 1 hours);
@@ -148,15 +147,7 @@ contract VestingPeriodicMonthlyTest is Test {
         claimable = vesting.previewClaimableTokens(bob);
         assertTrue(claimable > expectedTGEAmount);
 
-        UD60x18 total = ud(totalPurchased);
-        UD60x18 vested = ud(vesting.previewVestedTokens());
-        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-        UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
-        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        uint256 expectedAmountAfterOneMonth = walletVested.intoUint256();
-
-        assertEq(claimable, expectedAmountAfterOneMonth);
+        assertEq(claimable, 216666666666666666666666);
 
         uint256 walletBalance = ERC20(vesting.token()).balanceOf(bob);
 
@@ -171,7 +162,6 @@ contract VestingPeriodicMonthlyTest is Test {
     function testPeriodicMonthly_CanClaimTGEAnd2MonthsLater() external idoTokenFilled(false) {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
-        uint256 purchased = vesting.purchases(bob);
         uint256 expectedTGEAmount = 75_000 ether;
 
         vm.warp(cliffEndsAt - 1 hours);
@@ -193,15 +183,7 @@ contract VestingPeriodicMonthlyTest is Test {
         vm.warp(BokkyPooBahsDateTimeLibrary.addMonths(cliffEndsAt, 2));
         claimable = vesting.previewClaimableTokens(bob);
 
-        UD60x18 total = ud(totalPurchased);
-        UD60x18 vested = ud(vesting.previewVestedTokens());
-        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-        UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
-        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        uint256 expectedAmountAfter2Months = walletVested.sub(ud(expectedTGEAmount)).intoUint256();
-
-        assertEq(claimable, expectedAmountAfter2Months);
+        assertEq(claimable, 283333333333333333333333);
 
         vm.startPrank(bob);
         vesting.claim();

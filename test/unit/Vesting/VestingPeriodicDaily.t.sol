@@ -80,7 +80,6 @@ contract VestingPeriodicDailyTest is Test {
     function testPeriodicDaily_CanClaimTGEPlusOneDayAmountUnlocked() external idoTokenFilled {
         uint256 cliffEndsAt = vesting.cliffEndsAt();
 
-        uint256 purchased = vesting.purchases(bob);
         uint256 expectedTGEAmount = 75_000 ether;
 
         vm.warp(cliffEndsAt - 1 hours);
@@ -91,15 +90,7 @@ contract VestingPeriodicDailyTest is Test {
         claimable = vesting.previewClaimableTokens(bob);
         assertTrue(claimable > expectedTGEAmount);
 
-        UD60x18 total = ud(totalPurchased);
-        UD60x18 vested = ud(vesting.previewVestedTokens());
-        UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-        UD60x18 walletSharePercentage = ud(purchased).mul(convert(100)).div(total);
-        UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-        UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-        uint256 expectedAmountAfterOneDay = walletVested.intoUint256();
-
-        assertEq(claimable, expectedAmountAfterOneDay);
+        assertEq(claimable, 88709677419354838709677);
 
         uint256 walletBalance = ERC20(vesting.token()).balanceOf(bob);
 
