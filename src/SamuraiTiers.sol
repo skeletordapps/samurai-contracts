@@ -5,18 +5,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {console} from "forge-std/console.sol";
 import {ISamLock} from "./interfaces/ISamLock.sol";
-import {ISamuraiTiers, ISamNfts, ISamLocks, ISamGaugeLP} from "./interfaces/ISamuraiTiers.sol";
+import {ISamuraiTiers, ISamNftLock, ISamLocks, ISamGaugeLP} from "./interfaces/ISamuraiTiers.sol";
 
 contract SamuraiTiers is Ownable, ReentrancyGuard {
-    address public nft;
+    address public nftLock;
     address public lock;
     address public lpGauge;
     uint256 public counter;
 
     mapping(uint256 index => ISamuraiTiers.Tier tier) public tiers;
 
-    constructor(address _nft, address _lock, address _lpGauge) Ownable(msg.sender) {
-        setSources(_nft, _lock, _lpGauge);
+    constructor(address _nftLock, address _lock, address _lpGauge) Ownable(msg.sender) {
+        setSources(_nftLock, _lock, _lpGauge);
     }
 
     /**
@@ -89,27 +89,27 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
      * @dev Emits a SourcesUpdated event with the new addresses.
      *       This function can only be called by the contract owner and is protected against reentrancy.
      *       It reverts if any of the provided addresses are invalid (zero address).
-     * @param _nft The address of the Sam NFT contract.
+     * @param _nftLock The address of the Sam NFT Lock contract.
      * @param _lock The address of the Sam Lock contract.
      * @param _lpGauge The address of the Sam/WETH LP gauge contract.
      */
-    function setSources(address _nft, address _lock, address _lpGauge) public onlyOwner nonReentrant {
-        require(_nft != address(0) && _lock != address(0) && _lpGauge != address(0), "Invalid address");
-        nft = _nft;
+    function setSources(address _nftLock, address _lock, address _lpGauge) public onlyOwner nonReentrant {
+        require(_nftLock != address(0) && _lock != address(0) && _lpGauge != address(0), "Invalid address");
+        nftLock = _nftLock;
         lock = _lock;
         lpGauge = _lpGauge;
 
-        emit ISamuraiTiers.SourcesUpdated(_nft, _lock, _lpGauge);
+        emit ISamuraiTiers.SourcesUpdated(_nftLock, _lock, _lpGauge);
     }
 
     /**
-     * @notice Gets the tier a wallet belongs to based on Sam NFT holdings, lockups, and LP staking.
+     * @notice Gets the tier a wallet belongs to based on Sam NFT locks, lockups, and LP staking.
      * @param wallet: Address of the wallet to check.
      * @return tier: The tier information for the wallet.
      */
     function getTier(address wallet) public view returns (ISamuraiTiers.Tier memory) {
-        // Check SAM NFTs balance
-        uint256 nftBalance = ISamNfts(nft).balanceOf(wallet);
+        // Check SAM NFTs locked balance
+        uint256 nftsLocked = ISamNftLock(nftLock).locksCounter(wallet);
 
         // Check Sam Lock balance
         ISamLock.LockInfo[] memory lockings = ISamLocks(lock).getLockInfos(wallet);
@@ -122,7 +122,7 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         // Check SAM/WETH gauge balance
         uint256 lpStaked = ISamGaugeLP(lpGauge).balanceOf(wallet);
 
-        if (nftBalance >= 1) return getTierByName("Shogun"); // returns shogun tier
+        if (nftsLocked >= 1) return getTierByName("Shogun"); // returns shogun tier
 
         // Iterate through tiers to find a matching tier
         for (uint256 i = 1; i <= counter; i++) {

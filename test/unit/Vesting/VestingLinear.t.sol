@@ -293,11 +293,14 @@ contract VestingLinearTest is Test {
     function testLinear_CanEmergencyWithdrawByWallet() external idoTokenFilled(false) {
         uint256 expectedAmountToWithdraw = 500_000 ether;
         vm.warp(vesting.vestingEndsAt() + 1 hours);
+
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
         emit IVesting.Claimed(bob, expectedAmountToWithdraw);
         vesting.emergencyWithdrawByWallet(bob);
         vm.stopPrank();
+
+        assertEq(ERC20(vesting.token()).balanceOf(bob), expectedAmountToWithdraw);
     }
 
     // EMERGENCY WITHDRAW

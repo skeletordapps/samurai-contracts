@@ -3,6 +3,10 @@ pragma solidity 0.8.28;
 
 import {ISamLock} from "./ISamLock.sol";
 
+interface ISamNftLock {
+    function locksCounter(address wallet) external view returns (uint256);
+}
+
 interface ISamNfts {
     function balanceOf(address owner) external view returns (uint256);
 }
@@ -19,6 +23,10 @@ interface ISamGaugeLP {
 
 interface MockSamNfts {
     function balanceOf(address wallet) external view returns (uint256);
+}
+
+interface MockSamNftsLock {
+    function locksCounter(address wallet) external view returns (uint256);
 }
 
 interface MockSamLocks {

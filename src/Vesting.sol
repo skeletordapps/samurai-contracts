@@ -113,7 +113,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Allows users to claim their allocated IDO tokens after the TGE vesting period.
      * @dev This function can only be called after the TGE vesting period and if the contract is not paused.
-     * It calculates the claimable amount based on the user's tier and participation.
+     * It calculates the claimable amount based on the user's purchase.
      * emit Claimed(msg.sender, amount) Emitted when a user successfully claims their IDO tokens.
      */
     function claim() external canClaim whenNotPaused nonReentrant {
@@ -139,6 +139,12 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         ERC20(token).safeTransfer(msg.sender, claimable);
     }
 
+    /**
+     * @notice Allows users to claim Samurai Points.
+     * @dev This function can only be called after the TGE vesting period and if the contract is not paused.
+     * It calculates the claimable amount of points based on the user's purchase.
+     * emit PointsClaimed(msg.sender, amount) Emitted when a user successfully claims their points.
+     */
     function claimPoints() external canClaim whenNotPaused nonReentrant {
         uint256 pointsToClaim = previewClaimablePoints(msg.sender);
         require(pointsToClaim > 0, IVesting.IVesting__Unauthorized("Nothing to claim"));
@@ -162,12 +168,11 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         uint256 allocation = purchases[wallet];
         require(allocation > 0, IVesting.IVesting__Unauthorized("Wallet has no allocation"));
 
-        tokensClaimed[wallet] = allocation;
-
         uint256 claimable = previewClaimableTokens(wallet);
+        tokensClaimed[wallet] = allocation;
         emit IVesting.Claimed(wallet, claimable);
 
-        ERC20(token).safeTransfer(owner(), claimable);
+        ERC20(token).safeTransfer(wallet, claimable);
     }
 
     /**
@@ -299,7 +304,6 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @return claimableTokens The total amount of claimable tokens for the wallet.
      */
     function previewClaimableTokens(address wallet) public view returns (uint256) {
-        console.log("PART 0");
         return _calculateVestedByWallet(wallet).intoUint256();
     }
 
@@ -477,6 +481,12 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Calculates the amount of tokens available for a specific wallet.
+     * @dev This function calculates the amount of tokens a participant can claim at the moment.
+     * @param wallet The participant's wallet address (address).
+     * @return The available tokens amount (UD60x18).
+     */
     function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
         UD60x18 zero = convert(0);
 
@@ -484,86 +494,23 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         if (purchases[wallet] == 0) return zero;
         if (askedRefund[wallet]) return zero;
 
-        UD60x18 walletTotal = ud(purchases[wallet]);
+        UD60x18 purchased = ud(purchases[wallet]);
         UD60x18 claimed = ud(tokensClaimed[wallet]);
 
-        if (claimed >= walletTotal) return zero;
+        if (claimed >= purchased) return zero;
 
         // Calculate total vested tokens
         UD60x18 totalVested = _calculateVestedTokens();
-        UD60x18 totalSupply = ud(totalPurchased);
 
         // Direct proportion calculation to avoid multiple ones
-        UD60x18 walletVested = totalVested.mul(walletTotal).div(totalSupply);
+        UD60x18 walletVested = totalVested.mul(purchased).div(ud(totalPurchased));
 
         // more safety
-        if (walletVested > walletTotal) {
-            walletVested = walletTotal;
-        }
-
-        if (walletVested <= claimed) {
-            return zero;
-        }
+        if (walletVested > purchased) walletVested = purchased;
+        if (walletVested <= claimed) return zero;
 
         return walletVested.sub(claimed);
     }
-    /**
-     * @notice Calculates the amount of tokens available for a specific wallet.
-     * @dev This function calculates the amount of tokens a participant can claim at the moment.
-     * @param wallet The participant's wallet address (address).
-     * @return The available tokens amount (UD60x18).
-     */
-    // function _calculateVestedByWallet(address wallet) private view returns (UD60x18) {
-    //     UD60x18 zero = convert(0);
-    //     IVesting.Periods memory periodsCopy = periods;
-
-    //     if (block.timestamp < periodsCopy.vestingAt) return zero; // Vesting not started
-    //     if (purchases[wallet] == 0) return zero; // Wallet has no purchases
-    //     if (askedRefund[wallet]) return zero;
-
-    //     console.log("PART 1");
-
-    //     UD60x18 max = ud(purchases[wallet]);
-    //     UD60x18 claimed = ud(tokensClaimed[wallet]);
-
-    //     /// User already claimed all tokens vested
-    //     if (claimed == max) return zero;
-
-    //     console.log("PART 2");
-
-    //     uint256 _cliffEndsAt = cliffEndsAt();
-    //     bool isTgeClaimed = hasClaimedTGE[wallet];
-
-    //     /// Only TGE is vested during cliff period
-    //     if (block.timestamp <= _cliffEndsAt) return isTgeClaimed ? zero : _calculateTGETokens(wallet);
-
-    //     console.log("PART 3");
-
-    //     UD60x18 balance = max.sub(claimed);
-
-    //     /// All tokens were vested -> return all balance remaining
-    //     if (block.timestamp > vestingEndsAt()) return balance;
-
-    //     console.log("PART 4");
-
-    //     /// CALCS  ================================================
-
-    //     /// CLIFF VESTING
-    //     if (vestingType == IVesting.VestingType.CliffVesting) return balance;
-
-    //     console.log("VESTING PART");
-
-    //     /// LINEAR VESTING & PERIODIC VESTING
-    //     UD60x18 total = ud(totalPurchased);
-    //     UD60x18 vested = _calculateVestedTokens();
-    //     UD60x18 totalVestedPercentage = vested.mul(convert(100)).div(total);
-    //     UD60x18 walletSharePercentage = max.mul(convert(100)).div(total);
-    //     UD60x18 walletVestedPercentage = walletSharePercentage.mul(totalVestedPercentage).div(convert(100));
-    //     UD60x18 walletVested = total.mul(walletVestedPercentage).div(convert(100));
-    //     UD60x18 walletClaimable = walletVested.sub(claimed);
-
-    //     return walletClaimable;
-    // }
 
     /**
      * @dev Calculates the time difference between two timestamps based on a given period type.

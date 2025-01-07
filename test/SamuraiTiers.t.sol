@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {DeploySamuraiTiers} from "../script/DeploySamuraiTiers.s.sol";
-import {ISamuraiTiers, MockSamNfts, MockSamLocks, MockSamGaugeLP} from "../src/interfaces/ISamuraiTiers.sol";
+import {ISamuraiTiers, MockSamNftsLock, MockSamLocks, MockSamGaugeLP} from "../src/interfaces/ISamuraiTiers.sol";
 import {ISamLock} from "../src/interfaces/ISamLock.sol";
 
 contract SamuraiTiersTest is Test {
@@ -122,7 +122,7 @@ contract SamuraiTiersTest is Test {
     }
 
     function testCanUpdateSources() external {
-        address nft = samuraiTiers.nft();
+        address nftLock = samuraiTiers.nftLock();
         address lock = samuraiTiers.lock();
         address lpGauge = samuraiTiers.lpGauge();
 
@@ -132,14 +132,14 @@ contract SamuraiTiersTest is Test {
         samuraiTiers.setSources(address(0), lock, lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nft, address(0), lpGauge);
+        samuraiTiers.setSources(nftLock, address(0), lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nft, lock, address(0));
+        samuraiTiers.setSources(nftLock, lock, address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit ISamuraiTiers.SourcesUpdated(nft, lock, lpGauge);
-        samuraiTiers.setSources(nft, lock, lpGauge);
+        emit ISamuraiTiers.SourcesUpdated(nftLock, lock, lpGauge);
+        samuraiTiers.setSources(nftLock, lock, lpGauge);
 
         vm.stopPrank();
     }
@@ -195,20 +195,20 @@ contract SamuraiTiersTest is Test {
 
     modifier mockExternalInfos(
         address wallet,
-        uint256 nftBalance,
+        uint256 nftsLocked,
         uint256 lockedAmount,
         uint256 withdrawnAmount,
         uint256 lpAmount
     ) {
-        MockSamNfts nftMock = MockSamNfts(address(samuraiTiers.nft()));
+        MockSamNftsLock nftLocksMock = MockSamNftsLock(address(samuraiTiers.nftLock()));
         MockSamLocks locksMock = MockSamLocks(address(samuraiTiers.lock()));
         MockSamGaugeLP lpGaugeMock = MockSamGaugeLP(address(samuraiTiers.lpGauge()));
 
         // Mock nft balance for the test case
         vm.mockCall(
-            address(samuraiTiers.nft()),
-            abi.encodeWithSelector(nftMock.balanceOf.selector, wallet),
-            abi.encode(nftBalance)
+            address(samuraiTiers.nftLock()),
+            abi.encodeWithSelector(nftLocksMock.locksCounter.selector, wallet),
+            abi.encode(nftsLocked)
         );
 
         // Mock lock information for the test case
@@ -275,7 +275,7 @@ contract SamuraiTiersTest is Test {
     }
 
     function testCanGetTierFromRealUsers() public setTiers {
-        address user1 = 0x5374883897Cb3d7a2129413710708318a0b39A9D;
+        address user1 = 0xB1686bF52BF8A58d88fDCf7e9624A23C732bA4bb;
 
         vm.startPrank(user1);
         ISamuraiTiers.Tier memory user1Tier = samuraiTiers.getTier(user1);

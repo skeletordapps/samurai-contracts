@@ -123,7 +123,7 @@ contract VestingPointsTest is Test {
         uint256 expectedPoints = ud(500000000000000000000000).mul(ud(0.315e18)).intoUint256(); // purchase * pointsPerToken
         assertEq(expectedPoints, 157_500 ether);
 
-        uint256 expectedBoost = 0.25e18;
+        uint256 expectedBoost = 0.5e18;
 
         UD60x18 pointsWithBoost = ud(expectedPoints).add(ud(expectedPoints).mul(ud(expectedBoost)));
 
