@@ -60,7 +60,7 @@ contract FuzzLPStakingTest is Test {
     }
 
     function testFuzzStake(uint256 amount, uint256 timeElapsed) public hasBalance(bob, amount) {
-        vm.assume(amount > 0 && amount < 1_000_000_000 ether);
+        vm.assume(amount > 0 && amount < 10_000 ether);
         timeElapsed = bound(timeElapsed, 30 days, 365 days);
         vm.warp(block.timestamp + timeElapsed);
 

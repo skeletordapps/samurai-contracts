@@ -15,13 +15,14 @@ import {IGauge} from "./interfaces/IGauge.sol";
 contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    uint256 public constant MAX_STAKES_PER_WALLET = 5;
+    uint256 public constant MAX_STAKES_PER_WALLET = 5; // Maximum number of stakes per wallet
+    uint256 public constant MAX_AMOUNT_TO_STAKE = 10_000 ether; // 10,000 LP tokens
 
     // Define stake periods (in seconds)
-    uint256 public constant THREE_MONTHS = 3 * 30 days;
-    uint256 public constant SIX_MONTHS = 6 * 30 days;
-    uint256 public constant NINE_MONTHS = 9 * 30 days;
-    uint256 public constant TWELVE_MONTHS = 12 * 30 days;
+    uint256 public constant THREE_MONTHS = 3 * 30 days; // 3 months
+    uint256 public constant SIX_MONTHS = 6 * 30 days; // 6 months
+    uint256 public constant NINE_MONTHS = 9 * 30 days; // 9 months
+    uint256 public constant TWELVE_MONTHS = 12 * 30 days; // 12 months
 
     ERC20 public immutable lpToken;
     ERC20 public immutable rewardsToken;
@@ -36,6 +37,25 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     mapping(uint256 period => uint256 multiplier) public multipliers;
     mapping(address wallet => uint256 claimedAt) lastClaims;
 
+    /**
+     * @notice Initialize the LPStaking contract
+     * @param _lpToken The address of the LP token
+     * @param _rewardsToken The address of the rewards token
+     * @param _gauge The address of the gauge
+     * @param _points The address of the points token
+     * @param _pointsPerToken The amount of points per token
+     * @dev Reverts with ILPStaking__Error if any of the parameters are invalid
+     * - The LP token address must be valid
+     * - The rewards token address must be valid
+     * - The gauge address must be valid
+     * - The points address must be valid
+     * - The points per token must be greater than 0
+     * - The multipliers for the lock periods must be greater than 0
+     * - The total staked and total withdrawn amounts are initialized to 0
+     * - The points per token is set to the input parameter
+     * - The multipliers for the lock periods are set to the input parameters
+     * - The LP token, rewards token, gauge, and points token addresses are stored
+     */
     constructor(address _lpToken, address _rewardsToken, address _gauge, address _points, uint256 _pointsPerToken)
         Ownable(msg.sender)
     {
@@ -59,10 +79,21 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Stake lp tokens to earn rewards and points based on lock tier and period
      * @param amount Amount of lp tokens to be staked
+     * @param period Lock period in seconds
+     * @dev Transfer lp tokens from the user to the contract
+     *      - Revert if the amount is less than or equal to 0
+     *      - Revert if the user has reached the maximum number of stakes
+     *      - Revert if the lock period is invalid
+     *      - Transfer the lp tokens from the user to the contract
+     *      - Create a new stake entry for the user
+     *      - Increment the total staked amount
+     *      - Emit a Staked event
+     *      - Approve and deposit LPs in the gauge system
      */
     function stake(uint256 amount, uint256 period) external nonReentrant whenNotPaused {
-        require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
         require(stakes[msg.sender].length < MAX_STAKES_PER_WALLET, ILPStaking.ILPStaking__Error("Max stakes reached"));
+        require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
+        require(amount <= MAX_AMOUNT_TO_STAKE, ILPStaking.ILPStaking__Error("Exceeds max amount")); // ADDED THIS LINE TO LIMIT MAX STAKE AMOUNT
         require(multipliers[period] > 0, ILPStaking.ILPStaking__Error("Invalid period"));
 
         ERC20(lpToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -91,6 +122,18 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      * @notice Withdraw staked lp tokens and earned points after the lock period ends
      * @param amount Amount of lp tokens to withdraw (must be less than or equal to staked amount)
      * @param stakeIndex Index of the specific stake information entry for the user
+     * @dev This function allows the user to withdraw their staked LP tokens after the lock period ends.
+     *      - Revert if the amount is less than or equal to 0
+     *      - Revert if the stake index is out of bounds
+     *      - Revert if the current time is before the withdraw time
+     *      - Revert if the amount is greater than the staked amount
+     *      - Revert if the amount is greater than the balance of the gauge
+     *      - Update the withdrawn amount for the stake
+     *      - Decrement the total staked amount
+     *      - Increment the total withdrawn amount
+     *      - Emit a Withdrawn event
+     *      - Withdraw the LP tokens from the gauge
+     *      - Transfer the LP tokens back to the user
      */
     function withdraw(uint256 amount, uint256 stakeIndex) external nonReentrant {
         require(amount > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
@@ -120,6 +163,14 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         ERC20(lpToken).safeTransfer(msg.sender, amount);
     }
 
+    /**
+     * @notice Claim rewards from the gauge
+     * @dev Claim rewards from the gauge and transfer them to the user's wallet
+     *      - Revert if there's no rewards to claim
+     *      - Iterate through all wallet stakes and claim rewards for each
+     *      - Transfer rewards to the user
+     *      - Emit an event with the claimed rewards amount
+     */
     function claimRewards() external nonReentrant {
         uint256 totalRewards;
         ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
@@ -222,6 +273,16 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         emit ILPStaking.MultipliersUpdated(multiplier3x, multiplier6x, multiplier9x, multiplier12x);
     }
 
+    /**
+     * @notice Previews the claimable rewards for a given wallet.
+     * @param wallet The wallet address to calculate claimable tokens for.
+     * @return rewards The total amount of claimable rewards for the wallet.
+     * @dev Calculates the total amount of rewards tokens for specific wallet.
+     *      - Iterates through all wallet stakes and calculates the rewards for each.
+     *      - Returns the total rewards for the wallet.
+     *      - Reverts with ILPStaking__Error if the wallet has no stakes.
+     *
+     */
     function previewRewards(address wallet) public view returns (uint256 rewards) {
         ILPStaking.StakeInfo[] memory walletStakes = stakes[wallet];
 
@@ -239,11 +300,18 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      * @param stakeIndex Index of the lock information entry for the user
      * @return rewards Total rewards earned for the specific lock entry (uint256)
      * @dev Reverts with ILock.SamLock__InvalidstakeIndex if the lock index is out of bounds
+     *      - Calculate the total rewards earned by the contract
+     *      - Calculate the proportion of total staked amount that belongs to this lock
+     *      - Calculate rewards for this lock
+     *      - Subtract already claimed rewards
+     *      - Return rewards
      */
     function rewardsByStake(address wallet, uint256 stakeIndex) public view returns (uint256) {
         require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
+
+        if (stakeInfo.lastRewardsClaimedAt >= block.timestamp) return 0; // ADDED THIS LINE TO DONT SPAM CLAIMS
 
         // Calculate total rewards earned by the contract
         UD60x18 totalRewards = ud(gauge.earned(address(this)));
@@ -263,10 +331,14 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Previews the claimable points for a given wallet and stakeIndex.
-     * @dev Calculates the total amount of Samurai Points tokens for specific stake.
      * @param wallet The wallet address to calculate claimable tokens for.
      * @param stakeIndex The index of a specific stake.
      * @return claimablePoints The total amount of claimable points for the wallet.
+     * @dev Calculates the total amount of Samurai Points tokens for specific stake.
+     *      - Reverts with ILPStaking__Error if the wallet has no stakes.
+     *      - Reverts with ILPStaking__Error if the stake index is out of bounds.
+     *      - Calculates the total points for the stake.
+     *      - Returns the total points for the stake.
      */
     function previewClaimablePoints(address wallet, uint256 stakeIndex) public view returns (uint256) {
         ILPStaking.StakeInfo[] memory walletStakes = stakes[wallet];
