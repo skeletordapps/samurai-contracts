@@ -17,6 +17,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
     uint256 public constant MAX_STAKES_PER_WALLET = 5; // Maximum number of stakes per wallet
     uint256 public constant MAX_AMOUNT_TO_STAKE = 10_000 ether; // 10,000 LP tokens
+    uint256 public constant CLAIM_DELAY_PERIOD = 5 minutes; // 5 minutes
 
     // Define stake periods (in seconds)
     uint256 public constant THREE_MONTHS = 3 * 30 days; // 3 months
@@ -311,7 +312,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
 
-        if (stakeInfo.lastRewardsClaimedAt >= block.timestamp) return 0; // ADDED THIS LINE TO DONT SPAM CLAIMS
+        if (stakeInfo.lastRewardsClaimedAt + CLAIM_DELAY_PERIOD > block.timestamp) return 0; // ADDED THIS LINE TO DONT SPAM CLAIMS
 
         // Calculate total rewards earned by the contract
         UD60x18 totalRewards = ud(gauge.earned(address(this)));
