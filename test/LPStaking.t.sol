@@ -63,6 +63,7 @@ contract LPStakingTest is Test {
         _;
     }
 
+    // STAKE
     function testRevertStakeWhenAmountIsZero() external {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Insufficient amount"));
@@ -77,6 +78,18 @@ contract LPStakingTest is Test {
         vm.stopPrank();
     }
 
+    function testRevertStakeMoreThanPermitted() external {
+        uint256 expectedAmount = staking.MAX_AMOUNT_TO_STAKE() + 1 ether;
+        deal(lpToken, bob, expectedAmount);
+
+        vm.startPrank(bob);
+        ERC20(lpToken).approve(address(staking), expectedAmount);
+
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Exceeds max amount"));
+        staking.stake(expectedAmount, threeMonths);
+        vm.stopPrank();
+    }
+
     function testCanStake() external hasBalance(bob, amountToStake) {
         vm.startPrank(bob);
         ERC20(lpToken).approve(address(staking), amountToStake);
@@ -85,7 +98,7 @@ contract LPStakingTest is Test {
         staking.stake(amountToStake, threeMonths);
         vm.stopPrank();
 
-        (uint256 stakedAmount,, uint256 stakedAt,,,, uint256 claimedRewards,) = staking.stakes(bob, 0);
+        (uint256 stakedAmount,, uint256 stakedAt,,,, uint256 claimedRewards) = staking.stakes(bob, 0);
 
         assertEq(stakedAmount, amountToStake);
         assertEq(stakedAt, block.timestamp);
@@ -163,7 +176,7 @@ contract LPStakingTest is Test {
         staking.withdraw(amountToStake, 0);
         vm.stopPrank();
 
-        (uint256 stakedAmount, uint256 withdrawnAmount,,,,,,) = staking.stakes(bob, 0);
+        (uint256 stakedAmount, uint256 withdrawnAmount,,,,,) = staking.stakes(bob, 0);
         uint256 endWalletBalance = ERC20(lpToken).balanceOf(bob);
 
         assertEq(initialWalletBalance + amountToStake, endWalletBalance);
@@ -188,7 +201,7 @@ contract LPStakingTest is Test {
         hasBalance(bob, amountToStake)
         hasStaked(bob, amountToStake, threeMonths)
     {
-        (,,, uint256 withdrawTime,,,,) = staking.stakes(bob, 0);
+        (,,, uint256 withdrawTime,,,) = staking.stakes(bob, 0);
         vm.warp(withdrawTime + 3 days);
 
         uint256 initialWalletBalance = ERC20(lpToken).balanceOf(bob);
@@ -268,6 +281,25 @@ contract LPStakingTest is Test {
         vm.stopPrank();
     }
 
+    function testRevertClaimWhenClaimingTooSoon()
+        external
+        hasBalance(bob, amountToStake)
+        hasStaked(bob, amountToStake, threeMonths)
+    {
+        vm.warp(block.timestamp + 10 days);
+
+        vm.startPrank(bob);
+        staking.claimRewards();
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 4 minutes);
+
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILPStaking.ILPStaking__Error.selector, "Claiming too soon"));
+        staking.claimRewards();
+        vm.stopPrank();
+    }
+
     function testCanClaimRewards() external hasBalance(bob, amountToStake) hasStaked(bob, amountToStake, threeMonths) {
         vm.warp(block.timestamp + 10 days);
         uint256 initialRewardsBalance = ERC20(rewardsToken).balanceOf(bob);
@@ -312,7 +344,7 @@ contract LPStakingTest is Test {
         staking.claimPoints();
         vm.stopPrank();
 
-        (,,,,, uint256 claimedPoints,,) = staking.stakes(bob, 0);
+        (,,,,, uint256 claimedPoints,) = staking.stakes(bob, 0);
         assertEq(claimedPoints, expectedPoints);
         assertEq(staking.previewClaimablePoints(bob, 0), 0);
         assertEq(ERC20(points).balanceOf(bob), expectedPoints);

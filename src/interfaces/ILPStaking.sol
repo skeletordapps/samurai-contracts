@@ -12,7 +12,6 @@ interface ILPStaking {
         uint256 stakePeriod;
         uint256 claimedPoints;
         uint256 claimedRewards;
-        uint256 lastRewardsClaimedAt;
     }
 
     event Staked(address indexed wallet, uint256 amount, uint256 lockIndex);

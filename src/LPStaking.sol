@@ -106,8 +106,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
             withdrawTime: block.timestamp + period,
             stakePeriod: period,
             claimedPoints: 0,
-            claimedRewards: 0,
-            lastRewardsClaimedAt: 0
+            claimedRewards: 0
         });
 
         stakes[msg.sender].push(newStake);
@@ -145,11 +144,11 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
             block.timestamp >= stakeInfo.withdrawTime,
             ILPStaking.ILPStaking__Error("Not allowed to withdraw in staking period")
         );
-        require(
-            amount <= stakeInfo.stakedAmount - stakeInfo.withdrawnAmount,
-            ILPStaking.ILPStaking__Error("Insufficient amount")
-        );
 
+        uint256 walletStaked = stakeInfo.stakedAmount - stakeInfo.withdrawnAmount;
+
+        require(walletStaked > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
+        require(amount <= walletStaked, ILPStaking.ILPStaking__Error("Insufficient amount"));
         require(amount <= gauge.balanceOf(address(this)), ILPStaking.ILPStaking__Error("Exceeds balance"));
 
         stakeInfo.withdrawnAmount += amount;
@@ -173,6 +172,11 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      *      - Emit an event with the claimed rewards amount
      */
     function claimRewards() external nonReentrant {
+        require(
+            block.timestamp > lastClaims[msg.sender] + CLAIM_DELAY_PERIOD,
+            ILPStaking.ILPStaking__Error("Claiming too soon")
+        ); // ADDED THIS LINE TO DONT SPAM CLAIMS POINTS
+
         uint256 totalRewards;
         ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
 
@@ -181,7 +185,6 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
             if (stakeRewards > 0) {
                 totalRewards += stakeRewards;
                 walletStakes[i].claimedRewards += stakeRewards;
-                walletStakes[i].lastRewardsClaimedAt = block.timestamp;
             }
         }
 
@@ -189,6 +192,9 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
         // Claim rewards from the gauge
         gauge.getReward(address(this));
+
+        // Update the last claim timestamp
+        lastClaims[msg.sender] = block.timestamp;
 
         // Transfer rewards to the user
         rewardsToken.safeTransfer(msg.sender, totalRewards);
@@ -205,7 +211,8 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      *      - Revert if there's no points to claim
      */
     function claimPoints() external nonReentrant {
-        require(block.timestamp > lastClaims[msg.sender], ILPStaking.ILPStaking__Error("Unallowed to claim right now"));
+        require(block.timestamp > lastClaims[msg.sender] + CLAIM_DELAY_PERIOD, "Claiming too soon"); // ADDED THIS LINE TO DONT SPAM CLAIMS POINTS
+
         ILPStaking.StakeInfo[] storage walletStakes = stakes[msg.sender];
         require(walletStakes.length > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
 
@@ -216,7 +223,10 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         }
 
         require(points > 0, ILPStaking.ILPStaking__Error("Insufficient points to claim"));
+
+        // Update the last claim timestamp
         lastClaims[msg.sender] = block.timestamp;
+
         emit ILPStaking.PointsClaimed(msg.sender, points);
 
         iPoints.mint(msg.sender, points);
@@ -311,8 +321,6 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
-
-        if (stakeInfo.lastRewardsClaimedAt + CLAIM_DELAY_PERIOD > block.timestamp) return 0; // ADDED THIS LINE TO DONT SPAM CLAIMS
 
         // Calculate total rewards earned by the contract
         UD60x18 totalRewards = ud(gauge.earned(address(this)));

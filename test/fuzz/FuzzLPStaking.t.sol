@@ -69,7 +69,7 @@ contract FuzzLPStakingTest is Test {
         staking.stake(amount, threeMonths);
         vm.stopPrank();
 
-        (uint256 stakedAmount,, uint256 stakedAt, uint256 withdrawTime, uint256 stakePeriod,,,) = staking.stakes(bob, 0);
+        (uint256 stakedAmount,, uint256 stakedAt, uint256 withdrawTime, uint256 stakePeriod,,) = staking.stakes(bob, 0);
 
         assertEq(stakedAmount, amount);
         assertEq(stakedAt, block.timestamp);
@@ -111,7 +111,7 @@ contract FuzzLPStakingTest is Test {
         staking.withdraw(amount, 0);
         vm.stopPrank();
 
-        (, uint256 withdrawnAmount,,,,,,) = staking.stakes(bob, 0);
+        (, uint256 withdrawnAmount,,,,,) = staking.stakes(bob, 0);
 
         assertEq(withdrawnAmount, amount);
         assertEq(token.balanceOf(bob), amount);
