@@ -318,15 +318,30 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      *      - Return rewards
      */
     function rewardsByStake(address wallet, uint256 stakeIndex) public view returns (uint256) {
-        require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
+        // require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
+        if (stakeIndex >= stakes[wallet].length) return 0;
+
+        // prevent division by zero
+        if (totalStaked == 0) return 0;
 
         ILPStaking.StakeInfo memory stakeInfo = stakes[wallet][stakeIndex];
 
-        // Calculate total rewards earned by the contract
-        UD60x18 totalRewards = ud(gauge.earned(address(this)));
+        // Calculate total staked amount for current stakeIndex
+        uint256 stakedAmount = stakeInfo.stakedAmount - stakeInfo.withdrawnAmount;
+
+        // prevent division by zero
+        if (stakedAmount == 0) return 0;
+
+        uint256 currentRewards = gauge.earned(address(this));
+
+        // prevent division by zero
+        if (currentRewards == 0) return 0;
+
+        // Convert total rewards to UD60x18
+        UD60x18 totalRewards = ud(currentRewards);
 
         // Calculate the proportion of total staked amount that belongs to this stake
-        UD60x18 stakeProportion = ud(stakeInfo.stakedAmount).div(ud(totalStaked));
+        UD60x18 stakeProportion = ud(stakedAmount).div(ud(totalStaked));
 
         // Calculate rewards for this stake
         UD60x18 stakeRewards = totalRewards.mul(stakeProportion);

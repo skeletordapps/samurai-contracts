@@ -78,6 +78,15 @@ contract FuzzLPStakingTest is Test {
         assertEq(stakePeriod, threeMonths);
     }
 
+    function testFuzzPreviewRewards(uint256 timeElapsed, uint256 amount) public hasBalance(bob, amount) {
+        timeElapsed = bound(timeElapsed, 30 days, 365 days);
+        vm.warp(block.timestamp + timeElapsed);
+
+        uint256 previewAmount = staking.previewRewards(bob);
+
+        assertEq(rewards.balanceOf(bob), previewAmount);
+    }
+
     function testFuzzClaim(uint256 timeElapsed)
         public
         hasBalance(bob, amountToStake)

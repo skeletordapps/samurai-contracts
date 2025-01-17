@@ -251,16 +251,11 @@ contract LPStakingTest is Test {
 
         assertTrue(bobRewards2 > bobRewards1);
         assertTrue(maryRewards2 > maryRewards1);
+    }
 
-        // timestamp += 200 days;
-
-        // vm.warp(timestamp);
-
-        // uint256 bobRewards3 = staking.previewRewards(bob);
-        // uint256 maryRewards3 = staking.previewRewards(mary);
-
-        // assertTrue(bobRewards3 > bobRewards2);
-        // assertTrue(maryRewards3 > maryRewards2);
+    function testRewardsReturnsZeroWhenForInvalidStakeIndex() public view {
+        uint256 rewards = staking.rewardsByStake(bob, 1);
+        assertEq(rewards, 0);
     }
 
     function testRevertClaimStakeWhenTotalRewardsIsZero() external {
