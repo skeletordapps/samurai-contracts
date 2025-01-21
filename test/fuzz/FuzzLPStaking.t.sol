@@ -69,6 +69,7 @@ contract FuzzLPStakingTest is Test {
         staking.stake(amount, threeMonths);
         vm.stopPrank();
 
+        
         (uint256 stakedAmount,, uint256 stakedAt, uint256 withdrawTime, uint256 stakePeriod,,) = staking.stakes(bob, 0);
 
         assertEq(stakedAmount, amount);

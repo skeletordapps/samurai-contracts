@@ -130,6 +130,40 @@ contract LPStakingTest is Test {
         vm.stopPrank();
     }
 
+    function testCanCheckWalletStakes()
+        external
+        hasBalance(bob, amountToStake * 2)
+        hasStaked(bob, amountToStake, threeMonths)
+        hasStaked(bob, amountToStake, threeMonths)
+    {
+        ILPStaking.StakeInfo[] memory stakes = staking.stakesOf(bob);
+
+        assertEq(stakes.length, 2);
+        assertEq(stakes[0].stakedAmount, amountToStake);
+        assertEq(stakes[1].stakedAmount, amountToStake);
+
+        assertEq(stakes[0].stakedAt, block.timestamp);
+        assertEq(stakes[1].stakedAt, block.timestamp);
+
+        assertEq(stakes[0].withdrawTime, block.timestamp + threeMonths);
+        assertEq(stakes[1].withdrawTime, block.timestamp + threeMonths);
+
+        assertEq(stakes[0].stakePeriod, threeMonths);
+        assertEq(stakes[1].stakePeriod, threeMonths);
+
+        assertEq(stakes[0].claimedRewards, 0);
+        assertEq(stakes[1].claimedRewards, 0);
+
+        assertEq(stakes[0].claimedPoints, 0);
+        assertEq(stakes[1].claimedPoints, 0);
+
+        assertEq(stakes[0].claimedRewards, 0);
+        assertEq(stakes[1].claimedRewards, 0);
+
+        assertEq(stakes[0].claimedPoints, 0);
+        assertEq(stakes[1].claimedPoints, 0);
+    }
+
     // WITHDRAW
 
     function testRevertWithdrawIfAmountIsZero()

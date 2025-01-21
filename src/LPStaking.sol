@@ -377,4 +377,8 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         return
             ud(stakeInfo.stakedAmount).mul(ud(pointsPerToken)).mul(ud(multipliers[stakeInfo.stakePeriod])).intoUint256();
     }
+
+    function stakesOf(address wallet) public view returns (ILPStaking.StakeInfo[] memory) {
+        return stakes[wallet];
+    }
 }
