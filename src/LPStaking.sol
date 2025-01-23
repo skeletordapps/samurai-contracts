@@ -15,6 +15,7 @@ import {IGauge} from "./interfaces/IGauge.sol";
 contract LPStaking is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
+    uint256 public constant WITHDRAW_THRESHOLD_LIMIT = 200 ether;
     uint256 public constant MAX_STAKES_PER_WALLET = 5; // Maximum number of stakes per wallet
     uint256 public constant MAX_AMOUNT_TO_STAKE = 10_000 ether; // 10,000 LP tokens
     uint256 public constant CLAIM_DELAY_PERIOD = 5 minutes; // 5 minutes
@@ -149,6 +150,9 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
         require(walletStaked > 0, ILPStaking.ILPStaking__Error("Insufficient amount"));
         require(amount <= walletStaked, ILPStaking.ILPStaking__Error("Insufficient amount"));
+
+        if (walletStaked - amount <= WITHDRAW_THRESHOLD_LIMIT) amount = walletStaked;
+
         require(amount <= gauge.balanceOf(address(this)), ILPStaking.ILPStaking__Error("Exceeds balance"));
 
         stakeInfo.withdrawnAmount += amount;

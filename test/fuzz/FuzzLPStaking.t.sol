@@ -26,7 +26,9 @@ contract FuzzLPStakingTest is Test {
     uint256 totalStaked;
 
     uint256 threeMonths = 90 days;
-    uint256 amountToStake = 10 ether;
+    uint256 amountToStake = 300 ether;
+
+    uint256 WITHDRAW_THRESHOLD_LIMIT;
 
     function setUp() public virtual {
         RPC_URL = vm.envString("BASE_RPC_URL");
@@ -43,6 +45,7 @@ contract FuzzLPStakingTest is Test {
         bob = vm.addr(1);
         vm.label(bob, "bob");
 
+        WITHDRAW_THRESHOLD_LIMIT = staking.WITHDRAW_THRESHOLD_LIMIT();
         totalStaked = staking.totalStaked();
     }
 
@@ -69,7 +72,6 @@ contract FuzzLPStakingTest is Test {
         staking.stake(amount, threeMonths);
         vm.stopPrank();
 
-        
         (uint256 stakedAmount,, uint256 stakedAt, uint256 withdrawTime, uint256 stakePeriod,,) = staking.stakes(bob, 0);
 
         assertEq(stakedAmount, amount);
@@ -117,11 +119,19 @@ contract FuzzLPStakingTest is Test {
         amount = bound(amount, 0.1 ether, amountToStake);
         vm.warp(block.timestamp + timeElapsed);
 
+        (uint256 stakedAmount, uint256 withdrawnAmount,,,,,) = staking.stakes(bob, 0);
+
+        uint256 walletStaked = stakedAmount - withdrawnAmount;
+
+        if (walletStaked - amount < WITHDRAW_THRESHOLD_LIMIT) {
+            amount = walletStaked;
+        }
+
         vm.startPrank(bob);
         staking.withdraw(amount, 0);
         vm.stopPrank();
 
-        (, uint256 withdrawnAmount,,,,,) = staking.stakes(bob, 0);
+        (, withdrawnAmount,,,,,) = staking.stakes(bob, 0);
 
         assertEq(withdrawnAmount, amount);
         assertEq(token.balanceOf(bob), amount);
