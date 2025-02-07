@@ -37,7 +37,7 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
 
     mapping(address wallet => ILPStaking.StakeInfo[] walletStakes) public stakes;
     mapping(uint256 period => uint256 multiplier) public multipliers;
-    mapping(address wallet => uint256 claimedAt) lastClaims;
+    mapping(address wallet => uint256 claimedAt) public lastClaims;
 
     /**
      * @notice Initialize the LPStaking contract
@@ -322,7 +322,6 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
      *      - Return rewards
      */
     function rewardsByStake(address wallet, uint256 stakeIndex) public view returns (uint256) {
-        // require(stakeIndex < stakes[wallet].length, ILPStaking.ILPStaking__Error("Invalid stake index"));
         if (stakeIndex >= stakes[wallet].length) return 0;
 
         // prevent division by zero
@@ -351,6 +350,8 @@ contract LPStaking is Ownable, Pausable, ReentrancyGuard {
         UD60x18 stakeRewards = totalRewards.mul(stakeProportion);
 
         if (stakeRewards.intoUint256() == 0) return 0;
+
+        if (stakeRewards.intoUint256() <= stakeInfo.claimedRewards) return 0;
 
         // Subtract already claimed rewards
         uint256 rewards = stakeRewards.sub(ud(stakeInfo.claimedRewards)).intoUint256();

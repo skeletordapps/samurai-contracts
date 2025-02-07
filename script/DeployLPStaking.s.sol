@@ -20,7 +20,7 @@ contract DeployLPStaking is Script {
 
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         uint256 pointsPerToken = 1071 ether;
-        points = address(0);
+        points = address(0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe);
 
         vm.startBroadcast(privateKey);
 
