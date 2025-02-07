@@ -14,7 +14,7 @@ interface IPoints {
     event MintedPoints(address account, uint256 numOfPoints, uint256 boost);
     event BurnedPoints(address account, uint256 numOfPoints);
 
-    function points(address account) external returns (uint256);
+    function balanceOf(address account) external returns (uint256);
     function mint(address to, uint256 numOfPoints) external;
     function burn(address from, uint256 numOfPoints) external;
     function setBoost(address to, uint8 boost) external;

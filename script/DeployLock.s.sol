@@ -10,36 +10,36 @@ import {IPoints} from "../src/interfaces/IPoints.sol";
 import {console} from "forge-std/console.sol";
 
 contract DeployLock is Script {
-    function run() external returns (SamLock lock, address sam, address points) {
+    function run() external returns (SamLock lock, address pastLock, address sam, address points) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         uint256 minToLock = 30_000 ether;
+
+        pastLock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
         sam = 0xed1779845520339693CDBffec49a74246E7D671b;
-        points = address(0);
+        points = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
 
         vm.startBroadcast(privateKey);
 
-        lock = new SamLock(sam, points, minToLock);
+        lock = new SamLock(sam, pastLock, points, minToLock);
         vm.stopBroadcast();
 
-        return (lock, sam, points);
+        return (lock, pastLock, sam, points);
     }
 
-    function runForTests() external returns (SamLock lock, address sam, address points) {
+    function runForTests() external returns (SamLock lock, address pastLock, address sam, address points) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
         uint256 minToLock = 30_000 ether;
+        pastLock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
         sam = 0xed1779845520339693CDBffec49a74246E7D671b;
+        points = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
 
         vm.startBroadcast(privateKey);
 
-        SamuraiPoints sp = new SamuraiPoints();
-        points = address(sp);
-
-        lock = new SamLock(sam, points, minToLock);
-        sp.grantRole(IPoints.Roles.MINTER, address(lock));
+        lock = new SamLock(sam, pastLock, points, minToLock);
 
         vm.stopBroadcast();
 
-        return (lock, sam, points);
+        return (lock, pastLock, sam, points);
     }
 
     function testMock() public {}

@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {console} from "forge-std/console.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {DeployLock} from "../script/DeployLock.s.sol";
-import {ILock} from "../src/interfaces/ILock.sol";
+import {ILock, IPastLock} from "../src/interfaces/ILock.sol";
 import {IPoints} from "../src/interfaces/IPoints.sol";
 import {UD60x18, ud} from "@prb/math/src/UD60x18.sol";
 
@@ -16,13 +16,16 @@ contract SamLockTest is Test {
 
     DeployLock deployer;
     SamLock lock;
+    IPastLock iPastLock;
     IPoints iPoints;
+    address pastLock;
     address token;
     address points;
 
     address owner;
     address bob;
     address mary;
+    address realPastLockAddr;
 
     uint256 minAmount;
 
@@ -38,16 +41,25 @@ contract SamLockTest is Test {
 
         deployer = new DeployLock();
 
-        (lock, token, points) = deployer.runForTests();
+        (lock, pastLock, token, points) = deployer.runForTests();
 
+        iPastLock = IPastLock(pastLock);
         iPoints = IPoints(points);
 
         owner = lock.owner();
+
+        vm.startPrank(owner);
+        iPoints.grantRole(IPoints.Roles.MINTER, address(lock));
+        vm.stopPrank();
+
         bob = vm.addr(1);
         vm.label(bob, "bob");
 
         mary = vm.addr(2);
         vm.label(mary, "mary");
+
+        realPastLockAddr = address(0xE4FeDe2f45E7257d9c269a752c89f6bB1Aa1E5c8);
+        vm.label(realPastLockAddr, "realPastLockAddr");
 
         minAmount = lock.minToLock();
 
@@ -465,5 +477,50 @@ contract SamLockTest is Test {
         vm.stopPrank();
 
         assertEq(lockInfos.length, 0);
+    }
+
+    function testCannotMigratePoints() external {
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to claim"));
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+    }
+
+    function testCanMigratePoints() external {
+        vm.startPrank(realPastLockAddr);
+        IPastLock.LockInfo[] memory pastLocks = iPastLock.getLockInfos(realPastLockAddr);
+
+        uint256 virtualPoints;
+
+        for (uint256 i = 0; i < pastLocks.length; i++) {
+            uint256 lockPoints = iPastLock.pointsByLock(realPastLockAddr, i);
+            virtualPoints += lockPoints;
+        }
+
+        uint256 initialPoints = iPoints.balanceOf(realPastLockAddr);
+
+        vm.expectEmit(true, true, true, true);
+        emit ILock.PointsMigrated(realPastLockAddr, virtualPoints);
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+
+        uint256 migratedPoints = iPoints.balanceOf(realPastLockAddr);
+
+        assertEq(migratedPoints, virtualPoints);
+        assertEq(migratedPoints, initialPoints + virtualPoints);
+    }
+
+    modifier migrated() {
+        vm.startPrank(realPastLockAddr);
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+        _;
+    }
+
+    function testCannotMigrateTwice() external migrated {
+        vm.startPrank(realPastLockAddr);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "No points to migrate"));
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
     }
 }
