@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {Script} from "forge-std/Script.sol";
 import {SamLock} from "../src/SamLock.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SamMock} from "../src/mocks/SamMock.sol";
 import {SamuraiPoints} from "../src/SamuraiPoints.sol";
 import {IPoints} from "../src/interfaces/IPoints.sol";
 import {console} from "forge-std/console.sol";

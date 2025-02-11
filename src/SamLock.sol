@@ -6,7 +6,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {ILock, IPastLock} from "./interfaces/ILock.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
@@ -14,22 +13,29 @@ import {IPoints} from "./interfaces/IPoints.sol";
 contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    // Define lock periods (in seconds)
-    uint256 public constant THREE_MONTHS = 3 * 30 days;
-    uint256 public constant SIX_MONTHS = 6 * 30 days;
-    uint256 public constant NINE_MONTHS = 9 * 30 days;
-    uint256 public constant TWELVE_MONTHS = 12 * 30 days;
+    // uint256 public constant THREE_MONTHS = 3 * 30 days;
+    // uint256 public constant SIX_MONTHS = 6 * 30 days;
+    // uint256 public constant NINE_MONTHS = 9 * 30 days;
+    // uint256 public constant TWELVE_MONTHS = 12 * 30 days;
+
+    uint256 public constant THREE_MONTHS = 3 minutes;
+    uint256 public constant SIX_MONTHS = 6 minutes;
+    uint256 public constant NINE_MONTHS = 9 minutes;
+    uint256 public constant TWELVE_MONTHS = 12 minutes;
+
+    uint256 public constant CLAIM_DELAY_PERIOD = 5 minutes; // 5 minutes
 
     address public immutable sam;
     IPoints private immutable iPoints;
     IPastLock private immutable iPastLock;
     uint256 public minToLock;
     uint256 public totalLocked;
-    uint256 public nextLockIndex;
+    uint256 public totalWithdrawn;
+    uint256 public totalClaimed;
 
     mapping(address wallet => ILock.LockInfo[]) public lockings;
     mapping(uint256 period => uint256 multiplier) public multipliers;
-    mapping(address wallet => uint256 claimedAt) lastClaims;
+    mapping(address wallet => uint256 claimedAt) public lastClaims;
     mapping(address wallet => uint256) public pointsMigrated;
 
     constructor(address _sam, address _pastLock, address _points, uint256 _minToLock) Ownable(msg.sender) {
@@ -61,10 +67,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
         ERC20(sam).safeTransferFrom(msg.sender, address(this), amount);
 
-        uint256 lockIndex = nextLockIndex;
-
         ILock.LockInfo memory newLock = ILock.LockInfo({
-            lockIndex: lockIndex,
             lockedAmount: amount,
             withdrawnAmount: 0,
             lockedAt: block.timestamp,
@@ -75,8 +78,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
         lockings[msg.sender].push(newLock);
         totalLocked += amount;
-        nextLockIndex++;
-        emit ILock.Locked(msg.sender, amount, lockIndex);
+        emit ILock.Locked(msg.sender, amount);
     }
 
     /**
@@ -93,7 +95,7 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         require(amount <= lockInfo.lockedAmount - lockInfo.withdrawnAmount, ILock.ILock__Error("Insufficient amount"));
 
         lockInfo.withdrawnAmount += amount;
-        totalLocked -= amount;
+        totalWithdrawn += amount;
         emit ILock.Withdrawn(msg.sender, amount, lockIndex);
 
         ERC20(sam).safeTransfer(msg.sender, amount);
@@ -107,38 +109,48 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
      *      - Revert if there's no points to claim
      */
     function claimPoints() external nonReentrant {
-        require(block.timestamp > lastClaims[msg.sender], ILock.ILock__Error("Unallowed to claim right now"));
+        require(block.timestamp > lastClaims[msg.sender] + CLAIM_DELAY_PERIOD, ILock.ILock__Error("Claiming too soon"));
         uint256 points;
         ILock.LockInfo[] memory walletLocks = lockings[msg.sender];
 
         for (uint256 i = 0; i < walletLocks.length; i++) {
-            uint256 lockPoints = pointsByLock(msg.sender, walletLocks[i].lockIndex);
+            uint256 lockPoints = previewClaimablePoints(msg.sender, i);
             points += lockPoints;
             lockings[msg.sender][i].claimedPoints = lockPoints;
         }
 
         require(points > 0, ILock.ILock__Error("Insufficient points to claim"));
         lastClaims[msg.sender] = block.timestamp;
+        totalClaimed += points;
         emit ILock.PointsClaimed(msg.sender, points);
 
         iPoints.mint(msg.sender, points);
     }
 
+    /**
+     * @notice Migrate virtual points to Samurai Points (SPS)
+     * @dev Migrate points from past lock contract to Samurai Points (SPS)
+     *      - Revert if there are no points to migrate
+     *      - Revert if there are no points to migrate
+     *      - Mint the migrated points to the user
+     *      - Update the points migrated for the user
+     *      - Emit an event for the migrated points
+     */
     function migrateVirtualPointsToTokens() external {
-        require(pointsMigrated[msg.sender] == 0, ILock.ILock__Error("No points to migrate"));
-
         IPastLock.LockInfo[] memory pastLocks = iPastLock.getLockInfos(msg.sender);
-        uint256 points;
+        uint256 virtualPoints;
 
         for (uint256 i = 0; i < pastLocks.length; i++) {
             uint256 lockPoints = iPastLock.pointsByLock(msg.sender, i);
-            points += lockPoints;
+            virtualPoints += lockPoints;
         }
 
-        require(points > 0, ILock.ILock__Error("Insufficient points to claim"));
-        pointsMigrated[msg.sender] += points;
-        emit ILock.PointsMigrated(msg.sender, points);
+        require(virtualPoints > 0, ILock.ILock__Error("Insufficient points to migrate"));
+        require(virtualPoints > pointsMigrated[msg.sender], ILock.ILock__Error("Insufficient points to migrate"));
 
+        uint256 points = virtualPoints - pointsMigrated[msg.sender];
+        pointsMigrated[msg.sender] = virtualPoints;
+        emit ILock.PointsMigrated(msg.sender, points);
         iPoints.mint(msg.sender, points);
     }
 
@@ -189,44 +201,37 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Retrieve all lock information entries for a specific user (address)
-     * @dev Reverts with ILock.SamLock__NotFound if there are no lock entries for the user
      * @param wallet Address of the user
      * @return lockInfos Array containing the user's lock information entries
      */
-    function getLockInfos(address wallet) public view returns (ILock.LockInfo[] memory) {
+    function locksOf(address wallet) public view returns (ILock.LockInfo[] memory) {
         return lockings[wallet];
     }
 
     /**
-     * @notice Calculate the total points earned for a specific lock entry
-     * @param wallet Address of the user
-     * @param lockIndex Index of the lock information entry for the user
-     * @return points Total points earned for the specific lock entry (uint256)
-     * @dev Reverts with ILock.SamLock__InvalidLockIndex if the lock index is out of bounds
+     * @notice Previews the claimable points for a given wallet and lockIndex.
+     * @param wallet The wallet address to calculate claimable tokens for.
+     * @param lockIndex The index of a specific lock.
+     * @return claimablePoints The total amount of claimable points for the wallet.
+     * @dev Calculates the total amount of Samurai Points tokens for specific stake.
+     *      - Reverts with ILPStaking__Error if the wallet has no stakes.
+     *      - Reverts with ILPStaking__Error if the stake index is out of bounds.
+     *      - Calculates the total points for the stake.
+     *      - Returns the total points for the stake.
      */
-    function pointsByLock(address wallet, uint256 lockIndex) public view returns (uint256 points) {
-        require(lockIndex < lockings[wallet].length, ILock.ILock__Error("Invalid lock index"));
+    function previewClaimablePoints(address wallet, uint256 lockIndex) public view returns (uint256) {
+        ILock.LockInfo[] memory walletLocks = lockings[wallet];
 
-        ILock.LockInfo memory lockInfo = lockings[wallet][lockIndex];
+        if (walletLocks.length == 0) return 0;
+        if (walletLocks.length <= lockIndex) return 0;
+
+        ILock.LockInfo memory lockInfo = walletLocks[lockIndex];
+
+        if (lockInfo.claimedPoints > 0) return 0;
+
         UD60x18 multiplier = ud(multipliers[lockInfo.lockPeriod]);
-        UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier).sub(ud(lockInfo.claimedPoints));
+        UD60x18 maxPointsToEarn = ud(lockInfo.lockedAmount).mul(multiplier);
 
-        if (block.timestamp >= lockInfo.unlockTime) {
-            points = maxPointsToEarn.intoUint256();
-            return points;
-        }
-
-        uint256 elapsedTime = block.timestamp - lockInfo.lockedAt;
-
-        if (elapsedTime > 0) {
-            UD60x18 oneDay = ud(86_400e18);
-            UD60x18 periodInDays = convert(lockInfo.lockPeriod).div(oneDay);
-            UD60x18 pointsPerDay = maxPointsToEarn.div(periodInDays);
-            UD60x18 elapsedDays = convert(elapsedTime).div(oneDay);
-
-            points = pointsPerDay.mul(elapsedDays).intoUint256();
-        }
-
-        return points;
+        return maxPointsToEarn.intoUint256();
     }
 }

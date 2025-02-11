@@ -22,7 +22,6 @@ interface IPastLock {
 
 interface ILock {
     struct LockInfo {
-        uint256 lockIndex;
         uint256 lockedAmount;
         uint256 withdrawnAmount;
         uint256 lockedAt;
@@ -31,7 +30,7 @@ interface ILock {
         uint256 claimedPoints;
     }
 
-    event Locked(address indexed wallet, uint256 amount, uint256 lockIndex);
+    event Locked(address indexed wallet, uint256 amount);
     event Withdrawn(address indexed wallet, uint256 amount, uint256 lockIndex);
     event MultipliersUpdated(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x);
     event PointsClaimed(address indexed wallet, uint256 amount);

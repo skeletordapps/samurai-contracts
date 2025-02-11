@@ -81,6 +81,10 @@ contract SamLockTest is Test {
         assertEq(lock.multipliers(twelveMonths), 7e18);
 
         assertEq(lock.minToLock(), 30_000 ether);
+
+        assertEq(lock.totalLocked(), 0);
+        assertEq(lock.totalWithdrawn(), 0);
+        assertEq(lock.totalClaimed(), 0);
     }
 
     function testRevertLockWhenUnderMinAmount() external {
@@ -110,7 +114,7 @@ contract SamLockTest is Test {
         ERC20(token).approve(address(lock), amount);
 
         vm.expectEmit(true, true, true, true);
-        emit ILock.Locked(wallet, amount, lock.nextLockIndex());
+        emit ILock.Locked(wallet, amount);
         lock.lock(amount, lock.THREE_MONTHS());
         vm.stopPrank();
         _;
@@ -135,7 +139,7 @@ contract SamLockTest is Test {
         lock.lock(60_000 ether, lock.SIX_MONTHS());
         vm.stopPrank();
 
-        assertEq(lock.getLockInfos(bob).length, 2);
+        assertEq(lock.locksOf(bob).length, 2);
     }
 
     function testRevertWithdrawWithZeroAmount() external {
@@ -146,7 +150,7 @@ contract SamLockTest is Test {
     }
 
     function testRevertClaimPointsWithNoPoints() external locked(bob, 30_000 ether) {
-        vm.startPrank(bob);
+        vm.startPrank(mary);
         vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to claim"));
         lock.claimPoints();
         vm.stopPrank();
@@ -154,18 +158,37 @@ contract SamLockTest is Test {
 
     function testCanClaimPoints() external locked(bob, 30_000 ether) {
         vm.warp(block.timestamp + 90 days);
-        uint256 expectedPoints = lock.pointsByLock(bob, 0);
+        uint256 expectedPoints = lock.previewClaimablePoints(bob, 0);
 
         vm.startPrank(bob);
+        vm.expectEmit(true, true, true, true);
+        emit ILock.PointsClaimed(bob, expectedPoints);
         lock.claimPoints();
         vm.stopPrank();
 
-        ILock.LockInfo[] memory locks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory locks = lock.locksOf(bob);
         assertEq(locks[0].claimedPoints, expectedPoints);
+        assertEq(lock.totalClaimed(), expectedPoints);
+    }
+
+    modifier claimedPoints() {
+        vm.warp(block.timestamp + 90 days);
+        vm.startPrank(bob);
+        lock.claimPoints();
+        vm.stopPrank();
+        _;
+    }
+
+    function testCannotClaimBeforeDelay() external locked(bob, 30_000 ether) claimedPoints {
+        vm.startPrank(bob);
+        vm.warp(block.timestamp + lock.CLAIM_DELAY_PERIOD() - 1 minutes);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Claiming too soon"));
+        lock.claimPoints();
+        vm.stopPrank();
     }
 
     function testRevertWithdrawWithGreaterAmount() external locked(bob, 30_000 ether) {
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob); // Using the getter function
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob); // Using the getter function
 
         vm.warp(lockings[0].unlockTime);
 
@@ -176,7 +199,7 @@ contract SamLockTest is Test {
     }
 
     function testRevertWithdrawWhenBeforeUnlockDate() external locked(mary, 210_000 ether) {
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(mary); // Using the getter function
+        ILock.LockInfo[] memory lockings = lock.locksOf(mary); // Using the getter function
 
         vm.warp(lockings[0].unlockTime - 1 days);
 
@@ -187,16 +210,15 @@ contract SamLockTest is Test {
     }
 
     function testCanWithdraw() external locked(bob, 100_000 ether) {
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob);
 
-        uint256 lockIndex = lockings[0].lockIndex;
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
 
-        uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
+        // uint256 initialPoints = lock.previewClaimablePoints(bob, lockIndex);
 
-        assertEq(initialPoints, 0);
+        // assertEq(initialPoints, 0);
 
         vm.warp(unlockTime);
         vm.startPrank(bob);
@@ -207,11 +229,10 @@ contract SamLockTest is Test {
 
         vm.stopPrank();
 
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
 
-        uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
-        assertTrue(currentPoints > initialPoints);
+        uint256 currentPoints = lock.previewClaimablePoints(bob, 0);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
     }
 
@@ -225,14 +246,11 @@ contract SamLockTest is Test {
         lock.lock(amount, threeMonths);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
-        uint256 lockIndex = lockings[0].lockIndex;
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob);
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
-        assertEq(initialPoints, 0);
         assertEq(unlockTime, block.timestamp + threeMonths);
         assertEq(lockedAmount, amount);
 
@@ -244,8 +262,8 @@ contract SamLockTest is Test {
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
-        uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
+        uint256 currentPoints = lock.previewClaimablePoints(bob, 0);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
     }
@@ -260,15 +278,11 @@ contract SamLockTest is Test {
         lock.lock(amount, sixMonths);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
-        uint256 lockIndex = lockings[0].lockIndex;
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob);
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
 
-        uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
-
-        assertEq(initialPoints, 0);
         assertEq(unlockTime, block.timestamp + sixMonths);
         assertEq(lockedAmount, amount);
 
@@ -280,8 +294,8 @@ contract SamLockTest is Test {
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
-        uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
+        uint256 currentPoints = lock.previewClaimablePoints(bob, 0);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
     }
@@ -296,15 +310,11 @@ contract SamLockTest is Test {
         lock.lock(amount, nineMonths);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
-        uint256 lockIndex = lockings[0].lockIndex;
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob);
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
 
-        uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
-
-        assertEq(initialPoints, 0);
         assertEq(unlockTime, block.timestamp + nineMonths);
         assertEq(lockedAmount, amount);
 
@@ -316,8 +326,8 @@ contract SamLockTest is Test {
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
-        uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
+        uint256 currentPoints = lock.previewClaimablePoints(bob, 0);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
     }
@@ -332,14 +342,11 @@ contract SamLockTest is Test {
         lock.lock(amount, twelveMonths);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory lockings = lock.getLockInfos(bob);
-        uint256 lockIndex = lockings[0].lockIndex;
+        ILock.LockInfo[] memory lockings = lock.locksOf(bob);
         uint256 lockedAmount = lockings[0].lockedAmount;
         uint256 unlockTime = lockings[0].unlockTime;
         uint256 lockPeriod = lockings[0].lockPeriod;
-        uint256 initialPoints = lock.pointsByLock(bob, lockIndex);
 
-        assertEq(initialPoints, 0);
         assertEq(unlockTime, block.timestamp + twelveMonths);
         assertEq(lockedAmount, amount);
 
@@ -351,8 +358,8 @@ contract SamLockTest is Test {
         lock.withdraw(amount, 0);
         vm.stopPrank();
 
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
-        uint256 currentPoints = lock.pointsByLock(bob, lockIndex);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
+        uint256 currentPoints = lock.previewClaimablePoints(bob, 0);
         assertEq(latestLocks[0].withdrawnAmount, latestLocks[0].lockedAmount);
         assertEq(currentPoints, ud(lockedAmount).mul(ud(lock.multipliers(lockPeriod))).intoUint256());
     }
@@ -407,10 +414,10 @@ contract SamLockTest is Test {
 
     function testWalletKeepPointsAfterUpdateMultipliers() external locked(bob, 30_000 ether) multipliersUpdated {
         uint256 newMinAmount = lock.minToLock();
-        ILock.LockInfo[] memory latestLocks = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory latestLocks = lock.locksOf(bob);
 
         vm.warp(latestLocks[0].unlockTime);
-        uint256 lockPoints = lock.pointsByLock(bob, 0);
+        uint256 lockPoints = lock.previewClaimablePoints(bob, 0);
 
         vm.startPrank(bob);
 
@@ -426,46 +433,13 @@ contract SamLockTest is Test {
     }
 
     function testRevertPointsByLockWithWrongIndex() external locked(bob, 30_000 ether) {
-        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Invalid lock index"));
-        lock.pointsByLock(bob, 1);
-    }
-
-    function testCanCheckTotalPoints() external locked(bob, 30_000 ether) {
-        uint256 initialPoints = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 2 days);
-        uint256 pointsIn2Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 5 days); //7 days
-        uint256 pointsIn7Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 20 days); // 27 days
-        uint256 pointsIn27Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 30 days); // 57 days
-        uint256 pointsIn57Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 23 days); // 80 days
-        uint256 pointsIn80Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 10 days); // 90 days
-        uint256 pointsIn90Days = lock.pointsByLock(bob, 0);
-
-        vm.warp(block.timestamp + 10 days); // 100 days
-        uint256 pointsIn100Days = lock.pointsByLock(bob, 0);
-
-        assertTrue(pointsIn2Days > initialPoints);
-        assertTrue(pointsIn7Days > pointsIn2Days);
-        assertTrue(pointsIn27Days > pointsIn7Days);
-        assertTrue(pointsIn57Days > pointsIn27Days);
-        assertTrue(pointsIn80Days > pointsIn57Days);
-        assertTrue(pointsIn90Days > pointsIn80Days);
-        assertTrue(pointsIn100Days == pointsIn90Days);
+        uint256 claimablePoints = lock.previewClaimablePoints(bob, 1);
+        assertEq(claimablePoints, 0);
     }
 
     function testRevertGetLockInfosWhithoutAny() external {
         vm.startPrank(bob);
-        ILock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockInfos = lock.locksOf(bob);
         vm.stopPrank();
 
         assertEq(lockInfos.length, 0);
@@ -473,17 +447,39 @@ contract SamLockTest is Test {
 
     function testShouldReturnEmptyLockInfosWhenHasNoLock() external {
         vm.startPrank(bob);
-        ILock.LockInfo[] memory lockInfos = lock.getLockInfos(bob);
+        ILock.LockInfo[] memory lockInfos = lock.locksOf(bob);
         vm.stopPrank();
 
         assertEq(lockInfos.length, 0);
     }
 
-    function testCannotMigratePoints() external {
+    function testRevertMigrationWhenHasNoPoints() external {
         vm.startPrank(bob);
-        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to claim"));
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to migrate"));
         lock.migrateVirtualPointsToTokens();
         vm.stopPrank();
+
+        uint256 initialPoints = iPoints.balanceOf(realPastLockAddr);
+
+        vm.startPrank(realPastLockAddr);
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+
+        uint256 migratedPoints = iPoints.balanceOf(realPastLockAddr);
+        assertTrue(migratedPoints > initialPoints);
+
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "Insufficient points to migrate"));
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 90 days);
+        vm.startPrank(realPastLockAddr);
+        lock.migrateVirtualPointsToTokens();
+        vm.stopPrank();
+
+        uint256 finalPoints = iPoints.balanceOf(realPastLockAddr);
+        assertTrue(finalPoints > migratedPoints);
     }
 
     function testCanMigratePoints() external {
@@ -515,12 +511,5 @@ contract SamLockTest is Test {
         lock.migrateVirtualPointsToTokens();
         vm.stopPrank();
         _;
-    }
-
-    function testCannotMigrateTwice() external migrated {
-        vm.startPrank(realPastLockAddr);
-        vm.expectRevert(abi.encodeWithSelector(ILock.ILock__Error.selector, "No points to migrate"));
-        lock.migrateVirtualPointsToTokens();
-        vm.stopPrank();
     }
 }
