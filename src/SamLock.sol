@@ -13,15 +13,10 @@ import {IPoints} from "./interfaces/IPoints.sol";
 contract SamLock is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
-    // uint256 public constant THREE_MONTHS = 3 * 30 days;
-    // uint256 public constant SIX_MONTHS = 6 * 30 days;
-    // uint256 public constant NINE_MONTHS = 9 * 30 days;
-    // uint256 public constant TWELVE_MONTHS = 12 * 30 days;
-
-    uint256 public constant THREE_MONTHS = 3 minutes;
-    uint256 public constant SIX_MONTHS = 6 minutes;
-    uint256 public constant NINE_MONTHS = 9 minutes;
-    uint256 public constant TWELVE_MONTHS = 12 minutes;
+    uint256 public constant THREE_MONTHS = 3 * 30 days;
+    uint256 public constant SIX_MONTHS = 6 * 30 days;
+    uint256 public constant NINE_MONTHS = 9 * 30 days;
+    uint256 public constant TWELVE_MONTHS = 12 * 30 days;
 
     uint256 public constant CLAIM_DELAY_PERIOD = 5 minutes; // 5 minutes
 

@@ -11,7 +11,7 @@ import {console} from "forge-std/console.sol";
 contract DeployLock is Script {
     function run() external returns (SamLock lock, address pastLock, address sam, address points) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
-        uint256 minToLock = 30_000 ether;
+        uint256 minToLock = 1 ether;
 
         pastLock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
         sam = 0xed1779845520339693CDBffec49a74246E7D671b;
