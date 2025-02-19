@@ -16,7 +16,7 @@ interface IGiveaways {
 
     error IGiveaways__Error(string message);
 
-    event GiveawayCreated(uint256 indexed id);
-    event EnteredGiveaway(address indexed account, uint256 giveawayId, uint256 tickets);
-    event GiveawayEnded(uint256 indexed id, address[] winners);
+    event Created(uint256 indexed id);
+    event Participated(address indexed account, uint256 giveawayId, uint256 tickets);
+    event Ended(uint256 indexed id, address[] winners);
 }

@@ -10,7 +10,7 @@ import {IGiveaways} from "./interfaces/IGiveaways.sol";
 
 contract Giveaways is Ownable, Pausable, ReentrancyGuard {
     IPoints public immutable points;
-    uint256[] public giveawaysIds;
+    uint256[] public ids;
 
     mapping(uint256 id => IGiveaways.Giveaway) public giveaways;
     mapping(uint256 giveawayId => mapping(address account => uint256 tickets)) public participations;
@@ -21,7 +21,7 @@ contract Giveaways is Ownable, Pausable, ReentrancyGuard {
         points = IPoints(_points);
     }
 
-    modifier isValidGiveaway(IGiveaways.Giveaway memory giveaway) {
+    modifier isValid(IGiveaways.Giveaway memory giveaway) {
         require(giveaway.id == 0, IGiveaways.IGiveaways__Error("Id must be zero"));
         require(bytes(giveaway.name).length > 0, IGiveaways.IGiveaways__Error("Name cannot be empty"));
         require(giveaway.priceInPoints > 0, IGiveaways.IGiveaways__Error("PriceInPoints must be greater than zero"));
@@ -36,7 +36,7 @@ contract Giveaways is Ownable, Pausable, ReentrancyGuard {
     }
 
     modifier canParticipate(uint256 giveawayId, uint256 tickets) {
-        require(giveawayId < giveawaysIds.length, IGiveaways.IGiveaways__Error("Giveaway does not exist"));
+        require(giveawayId < ids.length, IGiveaways.IGiveaways__Error("Giveaway does not exist"));
         IGiveaways.Giveaway memory giveaway = giveaways[giveawayId];
 
         require(block.timestamp >= giveaway.startAt, IGiveaways.IGiveaways__Error("Giveaway has not started yet"));
@@ -65,7 +65,7 @@ contract Giveaways is Ownable, Pausable, ReentrancyGuard {
 
         participations[giveawayId][msg.sender] += tickets;
         giveaway.tickets += tickets;
-        emit IGiveaways.EnteredGiveaway(msg.sender, giveawayId, tickets);
+        emit IGiveaways.Participated(msg.sender, giveawayId, tickets);
 
         uint256 pointsToBurn = tickets * giveaway.priceInPoints;
 
@@ -88,18 +88,20 @@ contract Giveaways is Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
-    function createGiveaway(IGiveaways.Giveaway memory giveaway) external onlyOwner isValidGiveaway(giveaway) {
-        uint256 id = giveawaysIds.length;
+    function create(IGiveaways.Giveaway memory giveaway) external onlyOwner isValid(giveaway) {
+        uint256 id = ids.length;
 
         giveaway.id = id;
         giveaways[id] = giveaway;
-        giveawaysIds.push(id);
-        emit IGiveaways.GiveawayCreated(id);
+        ids.push(id);
+        emit IGiveaways.Created(id);
     }
 
     function setWinner(uint256 giveawayId, address[] memory winners) external onlyOwner {
-        require(giveawayId < giveawaysIds.length, IGiveaways.IGiveaways__Error("Giveaway does not exist"));
+        require(giveawayId < ids.length, IGiveaways.IGiveaways__Error("Giveaway does not exist"));
         require(block.timestamp >= giveaways[giveawayId].drawAt, IGiveaways.IGiveaways__Error("DrawAt has not passed"));
+        require(giveaways[giveawayId].winners.length == 0, IGiveaways.IGiveaways__Error("Winners already set"));
+        require(participants[giveawayId].length > 0, IGiveaways.IGiveaways__Error("No participants"));
 
         IGiveaways.Giveaway storage giveaway = giveaways[giveawayId];
 
@@ -107,14 +109,18 @@ contract Giveaways is Ownable, Pausable, ReentrancyGuard {
             giveaway.winners.push(winners[i]);
         }
 
-        emit IGiveaways.GiveawayEnded(giveawayId, winners);
+        emit IGiveaways.Ended(giveawayId, winners);
     }
 
-    function getGiveawaysIds() external view returns (uint256[] memory) {
-        return giveawaysIds;
+    function getIDs() external view returns (uint256[] memory) {
+        return ids;
     }
 
-    function getParticipants(uint256 giveawayId) external view returns (address[] memory) {
+    function participantsOf(uint256 giveawayId) public view returns (address[] memory) {
         return participants[giveawayId];
+    }
+
+    function winnersOf(uint256 giveawayId) public view returns (address[] memory) {
+        return giveaways[giveawayId].winners;
     }
 }

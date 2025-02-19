@@ -9,15 +9,14 @@ import {SamuraiPoints} from "../src/SamuraiPoints.sol";
 import {IPoints} from "../src/interfaces/IPoints.sol";
 
 contract DeployGiveaways is Script {
-    function run() external returns (Giveaways giveaways) {
+    function run() external returns (Giveaways giveaways, address points) {
         uint256 privateKey = block.chainid == 8453 ? vm.envUint("PRIVATE_KEY") : vm.envUint("DEV_HOT_PRIVATE_KEY");
-        address points = address(0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe); // SPS TOKEN
-
+        points = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
         vm.startBroadcast(privateKey);
         giveaways = new Giveaways(points);
         vm.stopBroadcast();
 
-        return giveaways;
+        return (giveaways, points);
     }
 
     function testMock() public {}
