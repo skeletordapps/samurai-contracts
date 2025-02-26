@@ -124,22 +124,23 @@ contract SamuraiTiersTest is Test {
     function testCanUpdateSources() external {
         address nftLock = samuraiTiers.nftLock();
         address lock = samuraiTiers.lock();
+        address lockV2 = samuraiTiers.lockV2();
         address lpGauge = samuraiTiers.lpGauge();
 
         vm.startPrank(owner);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(address(0), lock, lpGauge);
+        samuraiTiers.setSources(address(0), lock, lockV2, lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nftLock, address(0), lpGauge);
+        samuraiTiers.setSources(nftLock, address(0), lockV2, lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nftLock, lock, address(0));
+        samuraiTiers.setSources(nftLock, lock, lockV2, address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit ISamuraiTiers.SourcesUpdated(nftLock, lock, lpGauge);
-        samuraiTiers.setSources(nftLock, lock, lpGauge);
+        emit ISamuraiTiers.SourcesUpdated(nftLock, lock, lockV2, lpGauge);
+        samuraiTiers.setSources(nftLock, lock, lockV2, lpGauge);
 
         vm.stopPrank();
     }

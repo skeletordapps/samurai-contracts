@@ -7,10 +7,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
-import {ILock, IPastLock} from "./interfaces/ILock.sol";
+import {ILock} from "./interfaces/ILock.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
 
-contract SamLock is Ownable, Pausable, ReentrancyGuard {
+contract SamLockV2 is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     uint256 public constant THREE_MONTHS = 3 * 30 days;
@@ -22,7 +22,6 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
 
     address public immutable sam;
     IPoints private immutable iPoints;
-    IPastLock private immutable iPastLock;
     uint256 public minToLock;
     uint256 public totalLocked;
     uint256 public totalWithdrawn;
@@ -31,9 +30,8 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
     mapping(address wallet => ILock.LockInfo[]) public lockings;
     mapping(uint256 period => uint256 multiplier) public multipliers;
     mapping(address wallet => uint256 claimedAt) public lastClaims;
-    mapping(address wallet => uint256) public pointsMigrated;
 
-    constructor(address _sam, address _pastLock, address _points, uint256 _minToLock) Ownable(msg.sender) {
+    constructor(address _sam, address _points, uint256 _minToLock) Ownable(msg.sender) {
         require(_sam != address(0), ILock.ILock__Error("Invalid address"));
         sam = _sam;
 
@@ -43,7 +41,6 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         multipliers[TWELVE_MONTHS] = 7e18;
 
         iPoints = IPoints(_points);
-        iPastLock = IPastLock(_pastLock);
         minToLock = _minToLock;
     }
 
@@ -122,33 +119,6 @@ contract SamLock is Ownable, Pausable, ReentrancyGuard {
         totalClaimed += points;
         emit ILock.PointsClaimed(msg.sender, points);
 
-        iPoints.mint(msg.sender, points);
-    }
-
-    /**
-     * @notice Migrate virtual points to Samurai Points (SPS)
-     * @dev Migrate points from past lock contract to Samurai Points (SPS)
-     *      - Revert if there are no points to migrate
-     *      - Revert if there are no points to migrate
-     *      - Mint the migrated points to the user
-     *      - Update the points migrated for the user
-     *      - Emit an event for the migrated points
-     */
-    function migrateVirtualPointsToTokens() external {
-        IPastLock.LockInfo[] memory pastLocks = iPastLock.getLockInfos(msg.sender);
-        uint256 virtualPoints;
-
-        for (uint256 i = 0; i < pastLocks.length; i++) {
-            uint256 lockPoints = iPastLock.pointsByLock(msg.sender, i);
-            virtualPoints += lockPoints;
-        }
-
-        require(virtualPoints > 0, ILock.ILock__Error("Insufficient points to migrate"));
-        require(virtualPoints > pointsMigrated[msg.sender], ILock.ILock__Error("Insufficient points to migrate"));
-
-        uint256 points = virtualPoints - pointsMigrated[msg.sender];
-        pointsMigrated[msg.sender] = virtualPoints;
-        emit ILock.PointsMigrated(msg.sender, points);
         iPoints.mint(msg.sender, points);
     }
 
