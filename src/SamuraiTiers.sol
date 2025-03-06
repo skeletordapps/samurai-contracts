@@ -6,19 +6,29 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {console} from "forge-std/console.sol";
 import {ISamLock} from "./interfaces/ISamLock.sol";
 import {ILock} from "./interfaces/ILock.sol";
-import {ISamuraiTiers, ISamNftLock, ISamLocks, ISamLocksV2, ISamGaugeLP} from "./interfaces/ISamuraiTiers.sol";
+import {
+    ISamuraiTiers,
+    ISamNftLock,
+    ISamLocks,
+    ISamLocksV2,
+    ISamLocksV3,
+    ISamGaugeLP
+} from "./interfaces/ISamuraiTiers.sol";
 
 contract SamuraiTiers is Ownable, ReentrancyGuard {
     address public nftLock;
     address public lock;
     address public lockV2;
+    address public lockV3;
     address public lpGauge;
     uint256 public counter;
 
     mapping(uint256 index => ISamuraiTiers.Tier tier) public tiers;
 
-    constructor(address _nftLock, address _lock, address _lockV2, address _lpGauge) Ownable(msg.sender) {
-        setSources(_nftLock, _lock, _lockV2, _lpGauge);
+    constructor(address _nftLock, address _lock, address _lockV2, address _lockV3, address _lpGauge)
+        Ownable(msg.sender)
+    {
+        setSources(_nftLock, _lock, _lockV2, _lockV3, _lpGauge);
     }
 
     /**
@@ -95,7 +105,7 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
      * @param _lock The address of the Sam Lock contract.
      * @param _lpGauge The address of the Sam/WETH LP gauge contract.
      */
-    function setSources(address _nftLock, address _lock, address _lockV2, address _lpGauge)
+    function setSources(address _nftLock, address _lock, address _lockV2, address _lockV3, address _lpGauge)
         public
         onlyOwner
         nonReentrant
@@ -104,9 +114,10 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
         nftLock = _nftLock;
         lock = _lock;
         lockV2 = _lockV2;
+        lockV3 = _lockV3;
         lpGauge = _lpGauge;
 
-        emit ISamuraiTiers.SourcesUpdated(_nftLock, _lock, _lockV2, _lpGauge);
+        emit ISamuraiTiers.SourcesUpdated(_nftLock, _lock, _lockV2, _lockV3, _lpGauge);
     }
 
     /**
@@ -133,6 +144,13 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
             totalLockedV2 += lockingsV2[i].lockedAmount - lockingsV2[i].withdrawnAmount;
         }
 
+        ILock.LockInfo[] memory lockingsV3 = ISamLocksV3(lockV2).locksOf(wallet);
+        uint256 totalLockedV3;
+
+        for (uint256 i = 0; i < lockingsV3.length; i++) {
+            totalLockedV3 += lockingsV3[i].lockedAmount - lockingsV3[i].withdrawnAmount;
+        }
+
         // Check SAM/WETH gauge balance
         uint256 lpStaked = ISamGaugeLP(lpGauge).balanceOf(wallet);
 
@@ -143,7 +161,8 @@ contract SamuraiTiers is Ownable, ReentrancyGuard {
             // start from 1 because tiers mapping starts from 1
             ISamuraiTiers.Tier memory tier = tiers[i];
             if (
-                (totalLockedV2 >= tier.minLocking && totalLockedV2 <= tier.maxLocking)
+                (totalLockedV3 >= tier.minLocking && totalLockedV3 <= tier.maxLocking)
+                    || (totalLockedV2 >= tier.minLocking && totalLockedV2 <= tier.maxLocking)
                     || (totalLocked >= tier.minLocking && totalLocked <= tier.maxLocking)
                     || (lpStaked >= tier.minLPStaking && lpStaked <= tier.maxLPStaking)
             ) {

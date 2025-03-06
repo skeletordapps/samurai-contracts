@@ -20,6 +20,10 @@ interface ISamLocksV2 {
     function locksOf(address wallet) external view returns (ILock.LockInfo[] memory);
 }
 
+interface ISamLocksV3 {
+    function locksOf(address wallet) external view returns (ILock.LockInfo[] memory);
+}
+
 interface ISamGaugeLP {
     function balanceOf(address wallet) external view returns (uint256);
 }
@@ -42,6 +46,10 @@ interface MockSamLocksV2 {
     function locksOf(address wallet) external view returns (ILock.LockInfo[] memory);
 }
 
+interface MockSamLocksV3 {
+    function locksOf(address wallet) external view returns (ILock.LockInfo[] memory);
+}
+
 interface MockSamGaugeLP {
     function balanceOf(address wallet) external view returns (uint256);
 }
@@ -59,7 +67,7 @@ interface ISamuraiTiers {
     event Added(uint256 index);
     event Removed(Tier tier);
     event Updated(uint256 index);
-    event SourcesUpdated(address nft, address lock, address lockV2, address lpGauge);
+    event SourcesUpdated(address nft, address lock, address lockV2, address lockV3, address lpGauge);
 
     function counter() external view returns (uint256);
     function tiers(uint256 index) external view returns (Tier memory);

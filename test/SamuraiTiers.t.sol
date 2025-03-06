@@ -5,8 +5,16 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {SamuraiTiers} from "../src/SamuraiTiers.sol";
 import {DeploySamuraiTiers} from "../script/DeploySamuraiTiers.s.sol";
-import {ISamuraiTiers, MockSamNftsLock, MockSamLocks, MockSamGaugeLP} from "../src/interfaces/ISamuraiTiers.sol";
+import {
+    ISamuraiTiers,
+    MockSamNftsLock,
+    MockSamLocks,
+    MockSamLocksV2,
+    MockSamLocksV3,
+    MockSamGaugeLP
+} from "../src/interfaces/ISamuraiTiers.sol";
 import {ISamLock} from "../src/interfaces/ISamLock.sol";
+import {ILock} from "../src/interfaces/ILock.sol";
 
 contract SamuraiTiersTest is Test {
     uint256 fork;
@@ -125,22 +133,23 @@ contract SamuraiTiersTest is Test {
         address nftLock = samuraiTiers.nftLock();
         address lock = samuraiTiers.lock();
         address lockV2 = samuraiTiers.lockV2();
+        address lockV3 = samuraiTiers.lockV3();
         address lpGauge = samuraiTiers.lpGauge();
 
         vm.startPrank(owner);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(address(0), lock, lockV2, lpGauge);
+        samuraiTiers.setSources(address(0), lock, lockV2, lockV3, lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nftLock, address(0), lockV2, lpGauge);
+        samuraiTiers.setSources(nftLock, address(0), lockV2, lockV3, lpGauge);
 
         vm.expectRevert("Invalid address");
-        samuraiTiers.setSources(nftLock, lock, lockV2, address(0));
+        samuraiTiers.setSources(nftLock, lock, lockV2, lockV3, address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit ISamuraiTiers.SourcesUpdated(nftLock, lock, lockV2, lpGauge);
-        samuraiTiers.setSources(nftLock, lock, lockV2, lpGauge);
+        emit ISamuraiTiers.SourcesUpdated(nftLock, lock, lockV2, lockV3, lpGauge);
+        samuraiTiers.setSources(nftLock, lock, lockV2, lockV3, lpGauge);
 
         vm.stopPrank();
     }
@@ -203,6 +212,8 @@ contract SamuraiTiersTest is Test {
     ) {
         MockSamNftsLock nftLocksMock = MockSamNftsLock(address(samuraiTiers.nftLock()));
         MockSamLocks locksMock = MockSamLocks(address(samuraiTiers.lock()));
+        MockSamLocks locksMockV2 = MockSamLocks(address(samuraiTiers.lockV2()));
+        MockSamLocks locksMockV3 = MockSamLocks(address(samuraiTiers.lockV3()));
         MockSamGaugeLP lpGaugeMock = MockSamGaugeLP(address(samuraiTiers.lpGauge()));
 
         // Mock nft balance for the test case
@@ -221,6 +232,26 @@ contract SamuraiTiersTest is Test {
             address(samuraiTiers.lock()),
             abi.encodeWithSelector(locksMock.getLockInfos.selector, wallet),
             abi.encode(lockInfos)
+        );
+
+        // Mock lock v2 information for the test case
+        ILock.LockInfo[] memory lockInfosV2 = new ILock.LockInfo[](1); // Define lock info structure
+
+        lockInfosV2[0] = ILock.LockInfo(0, lockedAmount, withdrawnAmount, block.timestamp, block.timestamp, 0 days); // Set desired locked/withdrawn amounts
+        vm.mockCall(
+            address(samuraiTiers.lockV2()),
+            abi.encodeWithSelector(locksMockV2.getLockInfos.selector, wallet),
+            abi.encode(lockInfosV2)
+        );
+
+        // Mock lock v3 information for the test case
+        ILock.LockInfo[] memory lockInfosV3 = new ILock.LockInfo[](1); // Define lock info structure
+
+        lockInfosV3[0] = ILock.LockInfo(0, lockedAmount, withdrawnAmount, block.timestamp, block.timestamp, 0 days); // Set desired locked/withdrawn amounts
+        vm.mockCall(
+            address(samuraiTiers.lockV3()),
+            abi.encodeWithSelector(locksMockV3.getLockInfos.selector, wallet),
+            abi.encode(lockInfosV3)
         );
 
         // Mock gauge WETH/SAM balance

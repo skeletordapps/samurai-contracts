@@ -11,15 +11,15 @@ import {ISamuraiTiers} from "../src/interfaces/ISamuraiTiers.sol";
 
 contract DeployParticipatorV2 is Script {
     function run() external returns (ParticipatorV2 participator) {
-        address samuraiTiers = 0x0514ccc3AC1d8C6f78b82d1D2D5B66931874D702;
+        address samuraiTiers = 0x0E7E40385E9b7e629c504996Bdd36a3b51Ed0525;
         bool usingETH = false;
         bool usingLinkedWallet = false;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 100_000 * DECIMALS;
+        uint256 totalMax = 12_500 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 5_000 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 2_000 * DECIMALS);
         IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 50 * DECIMALS, 100 * DECIMALS);
         IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
         IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 300 * DECIMALS);

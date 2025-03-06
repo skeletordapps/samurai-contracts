@@ -65,10 +65,11 @@ contract DeployParticipatorNftV2 is Script {
         address _nft = 0x519eD34150300dC0D04d50a5Ff401177A92b4406;
         address _lock = 0xfb691697BDAf1857C748C004cC7dab3d234E062E;
         address _lockV2 = 0xD450D58A1B61132FF867ca8e6BB878C3669AC292;
+        address _lockV3 = 0xA5c6584d6115cC26C956834849B4051bd200973a;
         address _lpGauge = 0xf96Bc096dd1E52dcE4d595B6C4B8c5d2200db1E5;
 
         vm.startBroadcast();
-        SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lockV2, _lpGauge);
+        SamuraiTiers samuraiTiers = new SamuraiTiers(_nft, _lock, _lockV2, _lockV3, _lpGauge);
         addInitialTiers(samuraiTiers);
 
         participator = new ParticipatorNftV2(address(samuraiTiers), pricePerToken, totalMax, ranges, usingETH);

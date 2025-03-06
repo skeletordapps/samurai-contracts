@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 interface IGauge {
+    function deposit(uint256 _amount, address _recipient) external;
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount) external;
     function getReward(address _account) external;
