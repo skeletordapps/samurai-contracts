@@ -37,4 +37,7 @@ interface ILock {
     event PointsMigrated(address indexed wallet, uint256 amount);
 
     error ILock__Error(string message);
+
+    function locksOf(address wallet) external view returns (ILock.LockInfo[] memory);
+    function previewClaimablePoints(address wallet, uint256 lockIndex) external view returns (uint256);
 }

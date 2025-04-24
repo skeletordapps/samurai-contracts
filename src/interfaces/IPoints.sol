@@ -21,4 +21,5 @@ interface IPoints {
     function grantRole(Roles role, address account) external;
     function revokeRole(Roles role, address account) external;
     function boostOf(address account) external returns (uint256);
+    function owner() external returns (address);
 }

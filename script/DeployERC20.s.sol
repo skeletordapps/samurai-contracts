@@ -7,14 +7,15 @@ import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {console} from "forge-std/console.sol";
 
 contract DeployERC20 is Script {
-    function run() external returns (ERC20Mock erc20Mock) {
-        uint256 privateKey = block.chainid == 8453 ? vm.envUint("PRIVATE_KEY") : vm.envUint("DEV_HOT_PRIVATE_KEY");
+    function run() external returns (ERC20Mock erc20Mock, USDCMock usdMock) {
+        uint256 privateKey = vm.envUint("DEV_HOT_PRIVATE_KEY");
         vm.startBroadcast(privateKey);
-        // usdcMock = new USDCMock("FakeUSDC", "fUSDC");
-        erc20Mock = new ERC20Mock("Skywalker", "SKR");
+        erc20Mock = new ERC20Mock("BeraShit", "BES");
+        usdMock = new USDCMock("BeraUSD", "BDC");
+
         vm.stopBroadcast();
 
-        return (erc20Mock);
+        return (erc20Mock, usdMock);
     }
 
     function testMock() public {}
