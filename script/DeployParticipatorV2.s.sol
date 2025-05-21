@@ -15,16 +15,16 @@ contract DeployParticipatorV2 is Script {
         bool usingETH = false;
         bool usingLinkedWallet = false;
         uint256 DECIMALS = usingETH ? 1e18 : 1e6;
-        uint256 totalMax = 12_500 * DECIMALS;
+        uint256 totalMax = 30_000 * DECIMALS;
 
         IParticipator.WalletRange[] memory ranges = new IParticipator.WalletRange[](6);
 
-        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 2_000 * DECIMALS);
+        IParticipator.WalletRange memory range1 = IParticipator.WalletRange("Public", 100 * DECIMALS, 3_000 * DECIMALS);
         IParticipator.WalletRange memory range2 = IParticipator.WalletRange("Ronin", 50 * DECIMALS, 100 * DECIMALS);
-        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 200 * DECIMALS);
-        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 300 * DECIMALS);
-        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 100 * DECIMALS, 400 * DECIMALS);
-        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 100 * DECIMALS, 500 * DECIMALS);
+        IParticipator.WalletRange memory range3 = IParticipator.WalletRange("Gokenin", 100 * DECIMALS, 250 * DECIMALS);
+        IParticipator.WalletRange memory range4 = IParticipator.WalletRange("Goshi", 100 * DECIMALS, 500 * DECIMALS);
+        IParticipator.WalletRange memory range5 = IParticipator.WalletRange("Hatamoto", 100 * DECIMALS, 1000 * DECIMALS);
+        IParticipator.WalletRange memory range6 = IParticipator.WalletRange("Shogun", 100 * DECIMALS, 1500 * DECIMALS);
 
         ranges[0] = range1;
         ranges[1] = range2;

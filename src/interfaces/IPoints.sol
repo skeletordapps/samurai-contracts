@@ -20,6 +20,6 @@ interface IPoints {
     function setBoost(address to, uint8 boost) external;
     function grantRole(Roles role, address account) external;
     function revokeRole(Roles role, address account) external;
-    function boostOf(address account) external returns (uint256);
-    function owner() external returns (address);
+    function boostOf(address account) external view returns (uint256);
+    function owner() external view returns (address);
 }

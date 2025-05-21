@@ -52,7 +52,7 @@ contract MissingPoints is Ownable, Pausable, ReentrancyGuard {
         iPoints.mint(msg.sender, points);
     }
 
-    function calculate(address wallet) public returns (uint256) {
+    function calculate(address wallet) public view returns (uint256) {
         uint256 points = 0;
         if (claims[wallet] > 0) return points; // return 0 if already claimed
 
@@ -69,7 +69,7 @@ contract MissingPoints is Ownable, Pausable, ReentrancyGuard {
         return points;
     }
 
-    function _calculate(address wallet, uint256 totalPoints) private returns (uint256) {
+    function _calculate(address wallet, uint256 totalPoints) private view returns (uint256) {
         uint256 points = 0;
         uint256 boost = iPoints.boostOf(wallet);
 
