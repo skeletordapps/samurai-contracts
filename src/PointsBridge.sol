@@ -1,78 +1,85 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ILockS} from "./interfaces/ILockS.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
-import {console} from "forge-std/console.sol";
 
+// aderyn-ignore-next-line(centralization-risk)
 contract PointsBridge is Ownable, Pausable, ReentrancyGuard {
-    IPoints public points;
-
-    uint256 public constant MAX_REQUESTS = 50;
+    IPoints public immutable points;
+    uint256 public immutable maxRequestsPerBatch;
     uint256 public currentBatchId;
     uint256 public fulfillmentsCounter;
 
-    mapping(uint256 id => mapping(uint256 fromChainId => ILockS.Request[])) public requests;
-    mapping(bytes32 id => bool isRequestFulfilled) public requested;
+    mapping(uint256 fromChainId => mapping(uint256 batchId => ILockS.Request[])) public batchesToRequests;
+    mapping(uint256 fromChainId => mapping(uint256 batchId => bool isFulfilled)) public batchIsFulfilled;
 
-    event PointsFulfilled(uint256 indexed batchId, uint256 amount);
+    event PointsFulfilled(uint256 indexed chainId, uint256 batchId, uint256 amount);
 
-    constructor(address _points) Ownable(msg.sender) {
+    constructor(address _points, uint256 _maxRequestsPerBatch) Ownable(msg.sender) {
+        require(_points != address(0), "Invalid address");
+        require(_maxRequestsPerBatch > 0, "Cannot be 0");
         points = IPoints(_points);
+        maxRequestsPerBatch = _maxRequestsPerBatch;
     }
 
-    function fulfillRequests(uint256 fromChainId, ILockS.Request[] memory _requests)
+    /// @notice Pause the contract, preventing further locking actions
+    /// aderyn-ignore-next-line(centralization-risk)
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause the contract, allowing locking actions again
+    /// aderyn-ignore-next-line(centralization-risk)
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function fulfill(uint256 fromChainId, uint256 batchId, ILockS.Request[] memory requests)
         external
-        whenNotPaused
         nonReentrant
+        whenNotPaused // aderyn-ignore-next-line(centralization-risk)
         onlyOwner
     {
-        uint256 _currentBatchIdCopy = currentBatchId;
-
         require(fromChainId != 0, "Invalid chain ID");
-        require(_requests.length > 0, "No requests provided");
-        require(_requests.length <= MAX_REQUESTS, "Too many requests");
-        require(requests[_currentBatchIdCopy][fromChainId].length == 0, "Requests batch already fulfilled");
+        require(requests.length > 0, "No requests provided");
+        require(requests.length <= maxRequestsPerBatch, "Too many requests");
+        require(batchesToRequests[fromChainId][batchId].length == 0, "Requests already fulfilled");
+        require(!batchIsFulfilled[fromChainId][batchId], "Requests already fulfilled");
 
         uint256 totalFulfilled;
 
-        for (uint256 i = 0; i < _requests.length; i++) {
-            totalFulfilled += fulfill(_currentBatchIdCopy, fromChainId, _requests[i]);
+        // aderyn-ignore-next-line(costly-loop)
+        for (uint256 i = 0; i < requests.length; i++) {
+            totalFulfilled += fulfillRequest(fromChainId, batchId, requests[i]);
         }
 
-        fulfillmentsCounter += _requests.length;
-        currentBatchId++;
+        fulfillmentsCounter += requests.length;
+        batchIsFulfilled[fromChainId][batchId] = true;
 
-        emit PointsFulfilled(_currentBatchIdCopy, totalFulfilled);
+        emit PointsFulfilled(fromChainId, batchId, totalFulfilled);
     }
 
-    function fulfill(uint256 _currentBatchId, uint256 _fromChainId, ILockS.Request memory _request)
+    function fulfillRequest(uint256 fromChainId, uint256 batchId, ILockS.Request memory request)
         private
         returns (uint256)
     {
-        require(checkRequest(_request) == false, "Requests already fulfilled");
-        require(_request.wallet != address(0), "Invalid wallet address");
-        require(_request.amount > 0, "Invalid amount");
+        require(!request.isFulfilled, "Requests already fulfilled");
+        require(request.wallet != address(0), "Invalid wallet address");
+        require(request.amount > 0, "Invalid amount");
 
-        _request.isFulfilled = true;
-        requests[_currentBatchId][_fromChainId].push(_request);
-        requested[keccak256(abi.encode(_request.wallet, _request.amount, _request.lockIndex))] = true;
+        request.isFulfilled = true;
+        batchesToRequests[fromChainId][batchId].push(request);
 
-        points.mint(_request.wallet, _request.amount);
+        points.mint(request.wallet, request.amount);
 
-        return _request.amount;
+        return request.amount;
     }
 
-    function checkRequest(ILockS.Request memory _request) public view returns (bool) {
-        bytes32 requestHash = keccak256(abi.encode(_request.wallet, _request.amount, _request.lockIndex));
-        return requested[requestHash];
-    }
-
-    function getRequests(uint256 _currentBatchId, uint256 _fromChainId) public view returns (ILockS.Request[] memory) {
-        return requests[_currentBatchId][_fromChainId];
+    function requestsFrom(uint256 chainId, uint256 batchId) external view returns (ILockS.Request[] memory) {
+        return batchesToRequests[chainId][batchId];
     }
 }

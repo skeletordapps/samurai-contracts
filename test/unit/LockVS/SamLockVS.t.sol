@@ -57,6 +57,7 @@ contract SamLockVSTest is Test {
 
     function testConstructor() public view {
         assertEq(lock.owner(), owner);
+        assertEq(lock.maxRequestsPerBatch(), 2);
         assertEq(address(lock.sam()), token);
 
         assertEq(lock.multipliers(threeMonths), 1e18);
@@ -181,43 +182,43 @@ contract SamLockVSTest is Test {
     function testRevertRequests() external {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILockS.ILock__Error.selector, "You have no locks"));
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
     }
 
     function testRevertRequestPointsWithInvalidIndex() external locked(bob, 30_000 ether) {
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILockS.ILock__Error.selector, "Invalid lock index"));
-        lock.requestPointsFor(1);
+        lock.request(1);
         vm.stopPrank();
     }
 
     function testRevertRequestWhenFulfilled() external locked(bob, 30_000 ether) {
         vm.startPrank(bob);
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
 
         vm.warp(block.timestamp + 1 days);
 
         vm.startPrank(owner);
         ILockS.Request[] memory requests = new ILockS.Request[](1);
-        (address wallet, uint256 amount, uint256 lockIndex, bool isFulfilled) = lock.requests(bob, 0);
-        requests[0] = ILockS.Request(wallet, amount, lockIndex, isFulfilled);
-        lock.fulfillRequests(requests);
+        (address wallet, uint256 amount, uint256 lockIndex, uint256 batchId, bool isFulfilled) = lock.requests(bob, 0);
+        requests[0] = ILockS.Request(wallet, amount, lockIndex, batchId, isFulfilled);
+        lock.fulfill(0);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vm.expectRevert(abi.encodeWithSelector(ILockS.ILock__Error.selector, "Request already fulfilled"));
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
     }
 
     function testRevertRequestWhenAlreadyRequested() external locked(bob, 30_000 ether) {
         vm.startPrank(bob);
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.warp(block.timestamp + 1 days);
         vm.expectRevert(abi.encodeWithSelector(ILockS.ILock__Error.selector, "Already requested"));
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
     }
 
@@ -225,18 +226,74 @@ contract SamLockVSTest is Test {
         vm.startPrank(bob);
         vm.expectEmit(true, true, true, false);
         emit ILockS.PointsRequested(bob, 30_000 ether);
-        lock.requestPointsFor(0);
+        lock.request(0);
 
         vm.warp(block.timestamp + 1 days);
 
         deal(token, bob, 60_000 ether);
         ERC20(token).approve(address(lock), 60_000 ether);
         lock.lock(60_000 ether, lock.SIX_MONTHS());
-        lock.requestPointsFor(1);
+        lock.request(1);
 
         assertEq(lock.locksOf(bob).length, 2);
         assertEq(lock.totalPointsPending(), 210_000 ether);
+        assertEq(lock.requestsOf(0).length, 2);
+        assertEq(lock.batchIsFulfilled(0), false);
         vm.stopPrank();
+    }
+
+    function testBatchesManagement()
+        external
+        locked(bob, 30_000 ether)
+        locked(mary, 60_000 ether)
+        locked(bob, 30_000 ether)
+    {
+        assertEq(lock.totalPointsPending(), 0);
+        assertEq(lock.totalPointsFulfilled(), 0);
+
+        // Wallet request points
+        vm.startPrank(bob);
+        lock.request(0);
+        vm.stopPrank();
+
+        assertEq(lock.totalPointsPending(), 30_000 ether);
+        assertEq(lock.totalPointsFulfilled(), 0);
+
+        vm.warp(block.timestamp + 1 days);
+        vm.startPrank(mary);
+        lock.request(0);
+        vm.stopPrank();
+
+        assertEq(lock.totalPointsPending(), 90_000 ether);
+        assertEq(lock.totalPointsFulfilled(), 0);
+
+        vm.warp(block.timestamp + 1 days);
+        vm.startPrank(bob);
+        lock.request(1);
+        vm.stopPrank();
+
+        assertEq(lock.totalPointsPending(), 120_000 ether);
+        assertEq(lock.lastBatchId(), 1);
+        assertEq(lock.batchIsFulfilled(0), false);
+        assertEq(lock.batchIsFulfilled(1), false);
+
+        // Owner fulfill points
+        vm.startPrank(owner);
+        lock.fulfill(0);
+        vm.stopPrank();
+
+        assertEq(lock.batchIsFulfilled(0), true);
+        assertEq(lock.totalPointsFulfilled(), 90_000 ether); // fulfilled request 1 and 2 on batch 0
+        assertEq(lock.totalPointsPending(), 30_000 ether);
+        assertEq(lock.batchIsFulfilled(1), false);
+
+        vm.startPrank(owner);
+        lock.fulfill(1);
+        vm.stopPrank();
+
+        assertEq(lock.batchIsFulfilled(1), true);
+        assertEq(lock.totalPointsPending(), 0);
+        assertEq(lock.totalPointsFulfilled(), 120_000 ether);
     }
 
     function testFulfillRequests() external locked(bob, 30_000 ether) locked(mary, 60_000 ether) {
@@ -245,48 +302,40 @@ contract SamLockVSTest is Test {
 
         // Wallet request points
         vm.startPrank(bob);
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
 
         assertEq(lock.totalPointsPending(), 30_000 ether);
         assertEq(lock.totalPointsFulfilled(), 0);
 
-        (address wallet, uint256 amount, uint256 lockIndex, bool isFulfilled) = lock.requests(bob, 0);
-
-        ILockS.Request[] memory requests = new ILockS.Request[](1);
-        requests[0] = ILockS.Request(wallet, amount, lockIndex, isFulfilled);
-
         // Owner fulfill points
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
-        emit ILockS.RequestFulfilled(requests);
-        lock.fulfillRequests(requests);
+        emit ILockS.RequestFulfilled(0);
+        lock.fulfill(0);
         vm.stopPrank();
 
         assertEq(lock.totalPointsPending(), 0);
         assertEq(lock.totalPointsFulfilled(), 30_000 ether);
+        assertEq(lock.batchIsFulfilled(0), true);
 
         vm.warp(block.timestamp + 1 days);
         vm.startPrank(mary);
-        lock.requestPointsFor(0);
+        lock.request(0);
         vm.stopPrank();
 
         assertEq(lock.totalPointsPending(), 60_000 ether);
 
-        (wallet, amount, lockIndex, isFulfilled) = lock.requests(mary, 0);
-
-        // reusing the same variable names for mary
-        requests[0] = ILockS.Request(wallet, amount, lockIndex, isFulfilled);
-
         // Owner fulfill points
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, false);
-        emit ILockS.RequestFulfilled(requests);
-        lock.fulfillRequests(requests);
+        emit ILockS.RequestFulfilled(1);
+        lock.fulfill(1);
         vm.stopPrank();
 
         assertEq(lock.totalPointsPending(), 0);
         assertEq(lock.totalPointsFulfilled(), 90_000 ether);
+        assertEq(lock.batchIsFulfilled(1), true);
     }
 
     function testFuzzLockProcessWith3Months(uint256 amount) external {

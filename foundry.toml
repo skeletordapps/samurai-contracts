@@ -15,11 +15,13 @@ remappings = [
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base = "${BASE_RPC_URL}"
 bera = "${BERA_RPC_URL}"
+sonic = "${SONIC_RPC_URL}"
 
 [etherscan]
 base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }
 base = { key = "${BASESCAN_API_KEY}", chain = 8453, url = "https://api.basescan.org/api" }
 bera = { key = "${BERASCAN_API_KEY}", chain = 80094, url = "https://api.berascan.com/api" }
+sonic = { key = "${SONIC_SCAN_API_KEY}", chain = 80094, url = "https://api.sonicscan.org/api" }
 
 [invariant]
 fail_on_revert = false

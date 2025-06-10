@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
-import {UD60x18} from "@prb/math/src/UD60x18.sol";
-
 interface ILockS {
     struct LockInfo {
         uint256 lockedAmount;
@@ -17,6 +15,7 @@ interface ILockS {
         address wallet;
         uint256 amount;
         uint256 lockIndex;
+        uint256 batchId;
         bool isFulfilled;
     }
 
@@ -24,7 +23,9 @@ interface ILockS {
     event Withdrawn(address indexed wallet, uint256 amount, uint256 lockIndex);
     event MultipliersUpdated(uint256 multiplier3x, uint256 multiplier6x, uint256 multiplier9x, uint256 multiplier12x);
     event PointsRequested(address indexed wallet, uint256 amount);
-    event RequestFulfilled(ILockS.Request[] indexed requests);
+    event RequestFulfilled(uint256 indexed batchRequestId);
+    event MinToLockUpdated(uint256 indexed amount);
+    event EmergencyWithdrawn(uint256 indexed amount);
 
     error ILock__Error(string message);
 

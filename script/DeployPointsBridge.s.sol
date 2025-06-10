@@ -8,12 +8,13 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract DeployPointsBridge is Script {
     function run() external returns (PointsBridge pointsBridge) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+        uint256 maxRequestsPerBatch = 50;
 
         address points = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
 
         vm.startBroadcast(privateKey);
 
-        pointsBridge = new PointsBridge(points);
+        pointsBridge = new PointsBridge(points, maxRequestsPerBatch);
         vm.stopBroadcast();
 
         return pointsBridge;
@@ -21,12 +22,13 @@ contract DeployPointsBridge is Script {
 
     function runForTests() external returns (PointsBridge pointsBridge, address points) {
         uint256 privateKey = block.chainid == 31337 ? vm.envUint("FOUNDRY_PRIVATE_KEY") : vm.envUint("PRIVATE_KEY");
+        uint256 maxRequestsPerBatch = 2;
 
         points = 0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe;
 
         vm.startBroadcast(privateKey);
 
-        pointsBridge = new PointsBridge(points);
+        pointsBridge = new PointsBridge(points, maxRequestsPerBatch);
 
         vm.stopBroadcast();
 
