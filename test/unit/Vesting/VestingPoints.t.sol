@@ -121,9 +121,10 @@ contract VestingPointsTest is Test {
         vm.warp(block.timestamp + 1 days); // Time passed since tge claim
 
         uint256 expectedPoints = ud(500000000000000000000000).mul(ud(0.315e18)).intoUint256(); // purchase * pointsPerToken
+
         assertEq(expectedPoints, 157_500 ether);
 
-        uint256 expectedBoost = 0.5e18;
+        uint256 expectedBoost = 1e18;
 
         UD60x18 pointsWithBoost = ud(expectedPoints).add(ud(expectedPoints).mul(ud(expectedBoost)));
 

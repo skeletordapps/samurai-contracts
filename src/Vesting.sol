@@ -11,6 +11,7 @@ import {UD60x18, ud, convert} from "@prb/math/src/UD60x18.sol";
 import {BokkyPooBahsDateTimeLibrary} from "@BokkyPooBahsDateTimeLibrary/contracts/BokkyPooBahsDateTimeLibrary.sol";
 import {IPoints} from "./interfaces/IPoints.sol";
 
+// aderyn-ignore-next-line(centralization-risk)
 contract Vesting is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
@@ -98,7 +99,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev This function is used to fill IDO tokens in the contract.
      * emit IDOTokenFilled(msg.sender, amount) Emitted when IDO tokens are deposited.
      */
-    function fillIDOToken(uint256 amount) external whenNotPaused nonReentrant {
+    // aderyn-ignore-next-line(eth-send-unchecked-address)
+    function fillIDOToken(uint256 amount) external nonReentrant whenNotPaused {
         require(
             ERC20(token).balanceOf(address(this)) + amount <= totalPurchased,
             IVesting.IVesting__Unauthorized("Unable to receive more IDO tokens")
@@ -114,7 +116,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It calculates the claimable amount based on the user's purchase.
      * emit Claimed(msg.sender, amount) Emitted when a user successfully claims their IDO tokens.
      */
-    function claim() external canClaim whenNotPaused nonReentrant {
+    // aderyn-ignore-next-line(eth-send-unchecked-address)
+    function claim() external nonReentrant canClaim whenNotPaused {
         uint256 claimable = previewClaimableTokens(msg.sender);
         require(claimable > 0, IVesting.IVesting__Unauthorized("There is no vested tokens available to claim"));
         require(
@@ -143,7 +146,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It calculates the claimable amount of points based on the user's purchase.
      * emit PointsClaimed(msg.sender, amount) Emitted when a user successfully claims their points.
      */
-    function claimPoints() external canClaim whenNotPaused nonReentrant {
+    function claimPoints() external nonReentrant canClaim whenNotPaused {
         uint256 pointsToClaim = previewClaimablePoints(msg.sender);
         require(pointsToClaim > 0, IVesting.IVesting__Unauthorized("Nothing to claim"));
 
@@ -160,7 +163,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
      * emit Claimed(wallet, balance) Emitted when remaining IDO tokens are withdrawn.
      */
-    function emergencyWithdrawByWallet(address wallet) external onlyOwner whenNotPaused nonReentrant {
+    // aderyn-ignore-next-line(centralization-risk)
+    function emergencyWithdrawByWallet(address wallet) external nonReentrant onlyOwner whenNotPaused {
         require(block.timestamp > vestingEndsAt(), IVesting.IVesting__Unauthorized("Vesting is ongoing"));
 
         uint256 allocation = purchases[wallet];
@@ -180,7 +184,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It reverts if there are no tokens to withdraw.
      * emit RemainingTokensWithdrawal(balance) Emitted when remaining IDO tokens are withdrawn.
      */
-    function emergencyWithdraw() external onlyOwner nonReentrant {
+    // aderyn-ignore-next-line(centralization-risk)
+    function emergencyWithdraw() external nonReentrant onlyOwner {
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance > 0, IVesting.IVesting__Unauthorized("Nothing to withdraw"));
 
@@ -194,7 +199,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It reverts if there are no refundable tokens to withdraw.
      * emit RefundsWidrawal(balance) Emitted when refundable tokens are withdrawn.
      */
-    function withdrawRefunds() external onlyOwner nonReentrant {
+    // aderyn-ignore-next-line(centralization-risk)
+    function withdrawRefunds() external nonReentrant onlyOwner {
         uint256 totalToRefundCopy = totalToRefund;
         require(totalToRefundCopy > 0, IVesting.IVesting__Unauthorized("Nothing to withdraw"));
 
@@ -210,7 +216,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It reverts if _refundPeriod is equal or lower than refundPeriod.
      * emit RefundsWidrawal(balance) Emitted when refundable tokens are withdrawn.
      */
-    function setRefundPeriod(uint256 _refundPeriod) external onlyOwner nonReentrant {
+    // aderyn-ignore-next-line(centralization-risk)
+    function setRefundPeriod(uint256 _refundPeriod) external nonReentrant onlyOwner {
         require(_refundPeriod > refundPeriod, IVesting.IVesting__Invalid("New period must be greater than current"));
 
         refundPeriod = _refundPeriod;
@@ -222,7 +229,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev This function can only be called by the contract owner and is protected against reentrancy.
      * @param timestamp uint256 - new TGE date.
      */
-    function updateVestingAt(uint256 timestamp) external onlyOwner nonReentrant {
+    // aderyn-ignore-next-line(centralization-risk)
+    function updateVestingAt(uint256 timestamp) external nonReentrant onlyOwner {
         require(timestamp > 0, IVesting.IVesting__Invalid("Invalid vestingAt"));
 
         // When vestingAt is already set by constructor
@@ -247,7 +255,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * It reverts if wallet claimed points.
      * emit NeedRefund(balance).
      */
-    function askForRefund() external whenNotPaused nonReentrant {
+    function askForRefund() external nonReentrant whenNotPaused {
         require(block.timestamp <= periods.vestingAt + refundPeriod, IVesting.IVesting__Unauthorized("Not refundable"));
         require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
         require(pointsClaimed[msg.sender] == 0, IVesting.IVesting__Unauthorized("Not refundable"));
@@ -262,7 +270,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev Pauses all token transfers.
      * Can only be called by the contract owner.
      */
-    function pause() public onlyOwner {
+    // aderyn-ignore-next-line(centralization-risk)
+    function pause() external onlyOwner {
         _pause();
     }
 
@@ -270,7 +279,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @dev Unpauses token transfers.
      * Can only be called by the contract owner.
      */
-    function unpause() public onlyOwner {
+    // aderyn-ignore-next-line(centralization-risk)
+    function unpause() external onlyOwner {
         _unpause();
     }
 
@@ -280,7 +290,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The address of the user wallet for whom to calculate TGE tokens.
      * @return tgeAmount The calculated amount of IDO tokens allocated to the wallet at TGE.
      */
-    function previewTGETokens(address wallet) public view returns (uint256) {
+    function previewTGETokens(address wallet) external view returns (uint256) {
         return _calculateTGETokens(wallet).intoUint256();
     }
 
@@ -290,7 +300,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      *
      * @return vestedTokens The total amount of vested tokens.
      */
-    function previewVestedTokens() public view returns (uint256) {
+    function previewVestedTokens() external view returns (uint256) {
         return _calculateVestedTokens().intoUint256();
     }
 
@@ -315,7 +325,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @param wallet The wallet address to calculate claimable tokens for.
      * @return claimablePoints The total amount of claimable points for the wallet.
      */
-    function previewClaimablePoints(address wallet) public returns (uint256) {
+    function previewClaimablePoints(address wallet) public view returns (uint256) {
         uint256 purchased = purchases[wallet];
 
         if (purchased == 0) return 0; // wallet has no purchases
@@ -353,7 +363,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * @notice Returns a list of addressess to be refunded.
      * @return address[].
      */
-    function getWalletsToRefund() public view returns (address[] memory) {
+    function getWalletsToRefund() external view returns (address[] memory) {
         return walletsToRefund;
     }
 

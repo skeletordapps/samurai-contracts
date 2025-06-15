@@ -14,13 +14,13 @@ import {IPoints} from "../src/interfaces/IPoints.sol";
 contract DeployVesting is Script {
     function run() external returns (Vesting vesting) {
         console.log("CHAIN - ", block.chainid);
-        address idoToken = address(0x2490880B1480Aba52241CE445355798e12ec9c99); // BERA SHIT
+        address idoToken = address(0x6a72d3A87f97a0fEE2c2ee4233BdAEBc32813D7a); // ESX
         address points = address(0x5f5f2D8C61a507AA6C47f30cc4f76B937C10a8e1); // SPS TOKEN
-        uint256 tgeReleasePercent = 0.5e18; // 50% on TGE
+        uint256 tgeReleasePercent = 0.05e18; // 5% on TGE
         uint256 pointsPerToken = 5.2e18; // 5.2 per token
         IVesting.VestingType vestingType = IVesting.VestingType.PeriodicVesting;
-        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.Months;
-        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 1, vestingAt: 1741618800, cliff: 0});
+        IVesting.PeriodType vestingPeriodType = IVesting.PeriodType.Days;
+        IVesting.Periods memory periods = IVesting.Periods({vestingDuration: 9, vestingAt: 1750257000, cliff: 3});
         (address[] memory wallets, uint256[] memory tokensPurchased) = loadWallets();
 
         vm.startBroadcast();
