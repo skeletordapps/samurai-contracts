@@ -14,7 +14,7 @@ import {IPoints} from "../src/interfaces/IPoints.sol";
 contract DeployVesting is Script {
     function run() external returns (Vesting vesting) {
         address idoToken = address(0x6a72d3A87f97a0fEE2c2ee4233BdAEBc32813D7a); // ESX
-        address points = address(0x5f5f2D8C61a507AA6C47f30cc4f76B937C10a8e1); // SPS TOKEN
+        address points = address(0xDf0fDc572849f01CdaB35b80cA41Ce67051C8Dfe); // SPS TOKEN
         uint256 tgeReleasePercent = 0.05e18; // 5% on TGE
         uint256 pointsPerToken = 0.08e18; // 0.08 per token
         uint256 refundPeriod = 0;

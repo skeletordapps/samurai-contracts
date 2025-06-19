@@ -333,16 +333,22 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      */
     function previewClaimablePoints(address wallet) public view returns (uint256) {
         uint256 purchased = purchases[wallet];
-
-        if (purchased == 0) return 0; // wallet has no purchases
-        if (askedRefund[wallet]) return 0; // wallets that asked for refund cannot get any points
-        if (pointsClaimed[wallet] > 0) return 0; // wallet already claimed
+        if (purchased == 0 || askedRefund[wallet] || pointsClaimed[wallet] > 0) {
+            return 0;
+        }
 
         uint256 boost = IPoints(points).boostOf(wallet);
-        UD60x18 accPoints = ud(purchased).mul(ud(pointsPerToken));
-        UD60x18 pointsPlusBooster = accPoints.add(accPoints.mul(ud(boost)));
 
-        return pointsPlusBooster.intoUint256();
+        // Step 1: base points = purchased * pointsPerToken
+        UD60x18 base = ud(purchased).mul(ud(pointsPerToken));
+
+        // Step 2: boost amount = base * boost
+        UD60x18 bonus = base.mul(ud(boost));
+
+        // Step 3: total = base + bonus
+        UD60x18 total = base.add(bonus);
+
+        return total.intoUint256();
     }
 
     /**
