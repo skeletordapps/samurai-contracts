@@ -39,10 +39,10 @@ contract VestingPointsTest is Test {
         vesting = deployer.runForPointsTests(IVesting.VestingType.LinearVesting);
         owner = vesting.owner();
 
-        bob = 0xcaE8cF1e2119484D6CC3B6EFAad2242aDBDB1Ea8;
+        bob = 0x0A32A9237aa5165377717082408907aca255A575;
         vm.label(bob, "bob");
 
-        mary = vm.addr(2);
+        mary = 0xdb836337cBbF4481a46e99116590696514C78404;
         vm.label(mary, "mary");
 
         paul = vm.addr(3);
@@ -57,7 +57,7 @@ contract VestingPointsTest is Test {
     modifier idoTokenFilled() {
         vm.warp(block.timestamp + 30 minutes);
         address idoToken = vesting.token();
-        uint256 expectedAmountOfTokens = 1_000_000 ether;
+        uint256 expectedAmountOfTokens = 55126.79162 ether + 183755.9721 ether;
 
         deal(idoToken, owner, expectedAmountOfTokens);
 
@@ -120,28 +120,28 @@ contract VestingPointsTest is Test {
     function testPoints_canClaimPoints() external idoTokenFilled tgeClaimed(bob) {
         vm.warp(block.timestamp + 1 days); // Time passed since tge claim
 
-        uint256 expectedPoints = ud(500000000000000000000000).mul(ud(0.315e18)).intoUint256(); // purchase * pointsPerToken
+        uint256 expectedPoints = ud(183755.9721 ether).mul(ud(0.08e18)).intoUint256(); // purchase * pointsPerToken
 
-        assertEq(expectedPoints, 157_500 ether);
+        assertEq(expectedPoints, 14700477768000000000000);
 
-        uint256 expectedBoost = 1e18;
+        uint256 expectedBoost = 500000000000000000;
 
         UD60x18 pointsWithBoost = ud(expectedPoints).add(ud(expectedPoints).mul(ud(expectedBoost)));
 
         expectedPoints = pointsWithBoost.intoUint256();
 
-        uint256 previewedPoints = vesting.previewClaimablePoints(bob);
+        uint256 previewedPoints = vesting.previewClaimablePoints(mary);
 
         assertEq(previewedPoints, expectedPoints);
 
-        uint256 walletBalanceInPoints = ERC20(vesting.points()).balanceOf(bob);
+        uint256 walletBalanceInPoints = ERC20(vesting.points()).balanceOf(mary);
 
-        vm.startPrank(bob);
+        vm.startPrank(mary);
         vm.expectEmit(true, true, true, true);
-        emit IVesting.PointsClaimed(bob, expectedPoints);
+        emit IVesting.PointsClaimed(mary, expectedPoints);
         vesting.claimPoints();
         vm.stopPrank();
 
-        assertEq(ERC20(vesting.points()).balanceOf(bob), walletBalanceInPoints + expectedPoints);
+        assertEq(ERC20(vesting.points()).balanceOf(mary), walletBalanceInPoints + expectedPoints);
     }
 }

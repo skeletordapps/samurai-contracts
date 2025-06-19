@@ -21,8 +21,9 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
     address public immutable points;
     IVesting.VestingType public immutable vestingType;
     IVesting.PeriodType public immutable vestingPeriodType;
+    bool public immutable isRefundable;
 
-    uint256 public refundPeriod = 48 hours;
+    uint256 public refundPeriod;
     uint256 public totalPurchased;
     uint256 public totalClaimed;
     uint256 public totalPoints;
@@ -57,6 +58,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         address _points,
         uint256 _tgeReleasePercent,
         uint256 _pointsPerToken,
+        uint256 _refundPeriod,
+        bool _isRefundable,
         IVesting.VestingType _vestingType,
         IVesting.PeriodType _vestingPeriodType,
         IVesting.Periods memory _periods,
@@ -72,6 +75,8 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
         points = _points;
         tgeReleasePercent = _tgeReleasePercent; // this can be zero
         pointsPerToken = _pointsPerToken;
+        refundPeriod = _refundPeriod; // 48 hours
+        isRefundable = _isRefundable;
         vestingType = _vestingType;
         vestingPeriodType = _vestingPeriodType;
         _setPeriods(_periods);
@@ -256,6 +261,7 @@ contract Vesting is Ownable, Pausable, ReentrancyGuard {
      * emit NeedRefund(balance).
      */
     function askForRefund() external nonReentrant whenNotPaused {
+        require(isRefundable, IVesting.IVesting__Unauthorized("Not refundable"));
         require(block.timestamp <= periods.vestingAt + refundPeriod, IVesting.IVesting__Unauthorized("Not refundable"));
         require(!hasClaimedTGE[msg.sender], IVesting.IVesting__Unauthorized("Not refundable"));
         require(pointsClaimed[msg.sender] == 0, IVesting.IVesting__Unauthorized("Not refundable"));
